@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/influxdata/platform"
+	idpctx "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
@@ -26,12 +27,30 @@ func NewUserHandler() *UserHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/users", h.handlePostUser)
-	h.HandlerFunc("GET", "/v1/users", h.handleGetUsers)
-	h.HandlerFunc("GET", "/v1/users/:id", h.handleGetUser)
-	h.HandlerFunc("PATCH", "/v1/users/:id", h.handlePatchUser)
-	h.HandlerFunc("DELETE", "/v1/users/:id", h.handleDeleteUser)
+	h.HandlerFunc("POST", "/v1/users", withAuth(h.handlePostUser, platform.CreateUserPermission))
+	h.HandlerFunc("GET", "/v1/users", withAuth(h.handleGetUsers, platform.ReadUserPermission))
+	h.HandlerFunc("GET", "/v1/users/:id", withAuth(h.handleGetUsers, platform.ReadUserPermission))
+	h.HandlerFunc("PATCH", "/v1/users/:id", withAuth(h.handlePatchUser, platform.WriteUserPermission))
+	h.HandlerFunc("DELETE", "/v1/users/:id", withAuth(h.handleDeleteUser, platform.DeleteUserPermission))
 	return h
+}
+
+func withAuth(next http.HandlerFunc, p platform.Permission) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		auth, err := idpctx.GetAuthorization(ctx)
+		if err != nil {
+			errors.EncodeHTTP(ctx, err, w)
+			return
+		}
+		if !platform.Allowed(p, auth.Permissions) {
+			http.Error(w, "you are not authorized for this action", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+		return
+	}
 }
 
 // handlePostUser is the HTTP handler for the POST /v1/users route.
@@ -60,13 +79,13 @@ type postUserRequest struct {
 }
 
 func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserRequest, error) {
-	b := &platform.User{}
-	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
+	user := &platform.User{}
+	if err := json.NewDecoder(r.Body).Decode(user); err != nil {
 		return nil, err
 	}
 
 	return &postUserRequest{
-		User: b,
+		User: user,
 	}, nil
 }
 
@@ -80,13 +99,13 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := h.UserService.FindUserByID(ctx, req.UserID)
+	user, err := h.UserService.FindUserByID(ctx, req.UserID)
 	if err != nil {
 		errors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, user); err != nil {
 		errors.EncodeHTTP(ctx, err, w)
 		return
 	}
@@ -98,18 +117,18 @@ type getUserRequest struct {
 
 func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
+	idParam := params.ByName("id")
+	if idParam == "" {
 		return nil, errors.InvalidDataf("url missing id")
 	}
 
-	var i platform.ID
-	if err := i.DecodeFromString(id); err != nil {
+	var id platform.ID
+	if err := id.DecodeFromString(idParam); err != nil {
 		return nil, err
 	}
 
 	req := &getUserRequest{
-		UserID: i,
+		UserID: id,
 	}
 
 	return req, nil
@@ -208,13 +227,13 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := h.UserService.UpdateUser(ctx, req.UserID, req.Update)
+	user, err := h.UserService.UpdateUser(ctx, req.UserID, req.Update)
 	if err != nil {
 		errors.EncodeHTTP(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, user); err != nil {
 		errors.EncodeHTTP(ctx, err, w)
 		return
 	}
@@ -278,13 +297,13 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, fmt.Errorf(resp.Header.Get("X-Influx-Error"))
 	}
 
-	var b platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var user platform.User
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	return &b, nil
+	return &user, nil
 }
 
 // FindUser returns the first user that matches filter.

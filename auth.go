@@ -59,9 +59,9 @@ type resource string
 
 const (
 	// UserResource represents the user resource actions can apply to.
-	UserResource = resource("user")
+	UserResource resource = "user"
 	// OrganizationResource represents the org resource actions can apply to.
-	OrganizationResource = resource("org")
+	OrganizationResource resource = "org"
 )
 
 // BucketResource constructs a bucket resource.
@@ -80,19 +80,29 @@ func (p Permission) String() string {
 }
 
 var (
-	// CreateUser is a permission for creating users.
+	// CreateUserPermission is a permission for creating users.
 	CreateUserPermission = Permission{
 		Action:   CreateAction,
 		Resource: UserResource,
 	}
-	// DeleteUser is a permission for deleting users.
+	// WriteUserPermission is a permission for writing users.
+	WriteUserPermission = Permission{
+		Action:   WriteAction,
+		Resource: UserResource,
+	}
+	// DeleteUserPermission is a permission for deleting users.
 	DeleteUserPermission = Permission{
 		Action:   DeleteAction,
 		Resource: UserResource,
 	}
+	// ReadUserPermission is a permission for reading users.
+	ReadUserPermission = Permission{
+		Action:   ReadAction,
+		Resource: UserResource,
+	}
 )
 
-// ReadBucket constructs a permission for reading a bucket.
+// ReadBucketPermission constructs a permission for reading a bucket.
 func ReadBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   ReadAction,
@@ -100,7 +110,7 @@ func ReadBucketPermission(id ID) Permission {
 	}
 }
 
-// WriteBucket constructs a permission for writing to a bucket.
+// WriteBucketPermission constructs a permission for writing to a bucket.
 func WriteBucketPermission(id ID) Permission {
 	return Permission{
 		Action:   WriteAction,
