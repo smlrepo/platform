@@ -29,7 +29,7 @@ func NewUserHandler() *UserHandler {
 
 	h.HandlerFunc("POST", "/v1/users", withAuth(h.handlePostUser, platform.CreateUserPermission))
 	h.HandlerFunc("GET", "/v1/users", withAuth(h.handleGetUsers, platform.ReadUserPermission))
-	h.HandlerFunc("GET", "/v1/users/:id", withAuth(h.handleGetUsers, platform.ReadUserPermission))
+	h.HandlerFunc("GET", "/v1/users/:id", withAuth(h.handleGetUser, platform.ReadUserPermission))
 	h.HandlerFunc("PATCH", "/v1/users/:id", withAuth(h.handlePatchUser, platform.WriteUserPermission))
 	h.HandlerFunc("DELETE", "/v1/users/:id", withAuth(h.handleDeleteUser, platform.DeleteUserPermission))
 	return h
