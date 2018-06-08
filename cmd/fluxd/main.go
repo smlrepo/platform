@@ -50,19 +50,23 @@ func init() {
 
 	fluxdCmd.PersistentFlags().StringVar(&bindAddr, "bind-addr", ":8093", "The bind address for this daemon.")
 	viper.BindEnv("BIND_ADDR")
-	viper.BindPFlag("bind_addr", fluxdCmd.PersistentFlags().Lookup("bind-addr"))
+	viper.BindPFlag("BIND_ADDR", fluxdCmd.PersistentFlags().Lookup("bind-addr"))
 
 	fluxdCmd.PersistentFlags().IntVar(&concurrencyQuota, "concurrency", runtime.NumCPU()*2, "The concurrency quota capacity for this daemon.")
 	viper.BindEnv("CONCURRENCY")
-	viper.BindPFlag("concurrency", fluxdCmd.PersistentFlags().Lookup("cuncurrency"))
+	viper.BindPFlag("CONCURRENCY", fluxdCmd.PersistentFlags().Lookup("concurrency"))
 
 	fluxdCmd.PersistentFlags().IntVar(&memoryBytesQuota, "mem-bytes", 0, "The memory-bytes quota capacity for this daemon.")
 	viper.BindEnv("MEM_BYTES")
-	viper.BindPFlag("mem_bytes", fluxdCmd.PersistentFlags().Lookup("mem-bytes"))
+	viper.BindPFlag("MEM_BYTES", fluxdCmd.PersistentFlags().Lookup("mem-bytes"))
 
 	fluxdCmd.PersistentFlags().String("storage-hosts", "localhost:8082", "host:port address of the storage server.")
 	viper.BindEnv("STORAGE_HOSTS")
 	viper.BindPFlag("STORAGE_HOSTS", fluxdCmd.PersistentFlags().Lookup("storage-hosts"))
+
+	fluxdCmd.PersistentFlags().BoolP("verbose", "v", false, "Be verbose.")
+	viper.BindEnv("VERBOSE")
+	viper.BindPFlag("VERBOSE", fluxdCmd.PersistentFlags().Lookup("verbose"))
 
 	fluxdCmd.PersistentFlags().String("bucket-name", "defaultbucket", "The bucket to access. ")
 	viper.BindEnv("BUCKET_NAME")
@@ -84,6 +88,7 @@ func fluxF(cmd *cobra.Command, args []string) {
 		ExecutorDependencies: make(execute.Dependencies),
 		ConcurrencyQuota:     concurrencyQuota,
 		MemoryBytesQuota:     int64(memoryBytesQuota),
+		Verbose:              viper.GetBool("VERBOSE"),
 	}
 	if err := injectDeps(config.ExecutorDependencies); err != nil {
 		logger.Error("error injecting dependencies", zap.Error(err))
