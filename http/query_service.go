@@ -132,7 +132,7 @@ type QueryService struct {
 func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql.Spec) (query.ResultIterator, error) {
 	u, err := newURL(s.Addr, queryPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("error building url: %s", err)
 	}
 	values := url.Values{}
 	values.Set("orgID", orgID.String())
@@ -140,12 +140,12 @@ func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(query); err != nil {
-		return nil, err
+		return nil, errors.Errorf("error encoding json: %s", err)
 	}
 
 	req, err := http.NewRequest("POST", u.String(), &buf)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("error building request : %s", err)
 	}
 	req.Header.Set("Authorization", s.Token)
 	req.Header.Set("Content-Type", "application/json")
@@ -154,7 +154,7 @@ func (s *QueryService) Query(ctx context.Context, orgID platform.ID, query *ifql
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("error making request: %s", err)
 	}
 	return s.processResponse(resp)
 }
