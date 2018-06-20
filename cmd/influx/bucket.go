@@ -324,3 +324,80 @@ func init() {
 
 	bucketCmd.AddCommand(bucketDeleteCmd)
 }
+
+// Owner management
+var bucketOwnersCmd = &cobra.Command{
+	Use:   "owners",
+	Short: "bucket ownership commands",
+	Run:   bucketF,
+}
+
+func init() {
+	bucketCmd.AddCommand(bucketOwnersCmd)
+}
+
+// List Owners
+type BucketOwnersListFlags struct {
+}
+
+var bucketOwnersListFlags BucketOwnersListFlags
+
+func bucketOwnersListF(cmd *cobra.Comannd, args []string) {
+
+}
+
+func init() {
+	bucketOwnersListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List bucket owners",
+		Run:   bucketOwnersListF,
+	}
+
+	bucketOwnersListCmd.Flags().StringVarP(&bucketOwnersListFlags.id, "id", "i", "", "bucket id")
+
+	bucketOwnersCmd.AddCommand(bucketOwnersListCmd)
+}
+
+// Add Owner
+type BucketOwnersAddFlags struct {
+}
+
+var bucketOwnersAddFlags BucketOwnersAddFlags
+
+func bucketOwnersAddF(cmd *cobra.Comannd, args []string) {
+
+}
+
+func init() {
+	bucketOwnersAddCmd := &cobra.Command{
+		Use:   "add",
+		Short: "Add bucket owner",
+		Run:   bucketOwnersAddF,
+	}
+
+	bucketOwnersAddCmd.Flags().StringVarP(&bucketOwnersAddFlags.id, "id", "i", "", "bucket id")
+
+	bucketOwnersCmd.AddCommand(bucketOwnersAddCmd)
+}
+
+// Delete Owner
+type BucketOwnersDeleteFlags struct {
+}
+
+var bucketOwnersDeleteFlags BucketOwnersDeleteFlags
+
+func bucketOwnersDeleteF(cmd *cobra.Comannd, args []string) {
+
+}
+
+func init() {
+	bucketOwnersDeleteCmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete bucket owner",
+		Run:   bucketOwnersDeleteF,
+	}
+
+	bucketOwnersDeleteCmd.Flags().StringVarP(&bucketOwnersDeleteFlags.id, "id", "i", "", "bucket id")
+
+	bucketOwnersCmd.AddCommand(bucketOwnersDeleteCmd)
+}
