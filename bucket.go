@@ -12,6 +12,7 @@ type Bucket struct {
 	Organization    string        `json:"organization,omitempty"`
 	Name            string        `json:"name"`
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
+	Owners          []ID          `json:"owners"`
 }
 
 // BucketService represents a service for managing bucket data.
@@ -42,6 +43,7 @@ type BucketService interface {
 type BucketUpdate struct {
 	Name            *string        `json:"name,omitempty"`
 	RetentionPeriod *time.Duration `json:"retentionPeriod,omitempty"`
+	Owners          *[]ID          `json:"owners"`
 }
 
 // BucketFilter represents a set of filter that restrict the returned results.

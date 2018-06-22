@@ -338,12 +338,23 @@ func init() {
 
 // List Owners
 type BucketOwnersListFlags struct {
+	name string
+	id   string
 }
 
 var bucketOwnersListFlags BucketOwnersListFlags
 
 func bucketOwnersListF(cmd *cobra.Comannd, args []string) {
+	s := &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
 
+	if bucketOwnersListFlags.id == "" && bucketOwnersListFlags.name == "" {
+		fmt.Println("must specify either id or name")
+		cmd.Usage()
+		os.Exit(1)
+	}
 }
 
 func init() {
@@ -354,6 +365,7 @@ func init() {
 	}
 
 	bucketOwnersListCmd.Flags().StringVarP(&bucketOwnersListFlags.id, "id", "i", "", "bucket id")
+	bucketOwnersListCmd.Flags().StringVarP(&bucketOwnersListFLags.name, "name", "n", "", "bucket name")
 
 	bucketOwnersCmd.AddCommand(bucketOwnersListCmd)
 }
