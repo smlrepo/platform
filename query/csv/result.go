@@ -788,7 +788,7 @@ func writeSchema(writer *csv.Writer, c *ResultEncoderConfig, row []string, cols 
 	if !c.NoHeader {
 		// Write labels header
 		for j, c := range cols {
-			row[j] = c.Label
+			row[j] = deNormalizeColName(c.Label)
 		}
 		writer.Write(row)
 	}
@@ -864,6 +864,21 @@ func writeDefaults(writer *csv.Writer, row, defaults []string) error {
 		}
 	}
 	return writer.Write(row)
+}
+
+func deNormalizeColName(colName string) string {
+	switch colName {
+	case "_m!":
+		return "_m"
+	case "_f!":
+		return "_f"
+	case "_m":
+		return "_measurement"
+	case "_f":
+		return "_field"
+	default:
+		return colName
+	}
 }
 
 func decodeValue(value string, c colMeta) (values.Value, error) {
