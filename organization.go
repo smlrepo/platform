@@ -4,8 +4,9 @@ import "context"
 
 // Organization is a organization. 🎉
 type Organization struct {
-	ID   ID     `json:"id"`
-	Name string `json:"name"`
+	ID     ID     `json:"id"`
+	Name   string `json:"name"`
+	Owners []ID   `json:"owners"`
 }
 
 // OrganizationService represents a service for managing organization data.
@@ -34,7 +35,8 @@ type OrganizationService interface {
 // OrganizationUpdate represents updates to a organization.
 // Only fields which are set are updated.
 type OrganizationUpdate struct {
-	Name *string
+	Name   *string
+	Owners *[]ID
 }
 
 // OrganizationFilter represents a set of filter that restrict the returned results.
