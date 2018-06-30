@@ -24,6 +24,7 @@ func init() {
 	influxCmd.AddCommand(replCmd)
 	influxCmd.AddCommand(queryCmd)
 	influxCmd.AddCommand(organizationCmd)
+	influxCmd.AddCommand(taskCmd)
 	influxCmd.AddCommand(userCmd)
 }
 

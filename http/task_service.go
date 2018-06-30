@@ -462,3 +462,10 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 		RunID: i,
 	}, nil
 }
+
+// TaskService connects to Influx via HTTP using tokens to manage tasks
+type TaskService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
