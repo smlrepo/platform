@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -474,7 +475,7 @@ type TaskService struct {
 }
 
 func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
-	u, err := newURL(s.Addr, bucketIDPath(id))
+	u, err := newURL(s.Addr, taskIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -505,19 +506,141 @@ func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfo
 }
 
 func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+	u, err := newURL(s.Addr, bucketPath)
+	if err != nil {
+		return nil, 0, err
+	}
 
+	query := u.Query()
+	if filter.Organization != nil {
+		query.Add("org", filter.Organization.String())
+	}
+	if filter.ID != nil {
+		query.Add("id", filter.ID.String())
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	req.URL.RawQuery = query.Encode()
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, 0, err
+	}
+
+	var tasks []*platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	return tasks, len(tasks), nil
 }
 
-func (s *TaskService) CreateTask(ctx context.Context, t *platform.Task) error {
+func (s *TaskService) CreateTask(ctx context.Context, task *platform.Task) error {
+	u, err := newURL(s.Addr, taskPath)
+	if err != nil {
+		return err
+	}
 
+	octets, err := json.Marshal(task)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	// TODO(jsternberg): Should this check for a 201 explicitly?
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(task); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+	u, err := newURL(s.Addr, taskIDPath(id))
+	if err != nil {
+		return nil, err
+	}
 
+	octets, err := json.Marshal(upd)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var task platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return &task, nil
 }
 
 func (s *TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
+	u, err := newURL(s.Addr, taskIDPath(id))
+	if err != nil {
+		return err
+	}
 
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	return CheckError(resp)
 }
 
 func taskIDPath(id platform.ID) string {
