@@ -34,6 +34,9 @@ type TaskService interface {
 	// Returns a single task
 	FindTaskByID(ctx context.Context, id ID) (*Task, error)
 
+	// FindTask returns the first task that matches a filter.
+	FindTask(ctx context.Context, filter TaskFilter) (*Task, error)
+
 	// Returns a list of tasks that match a filter (limit 100) and the total count
 	// of matching tasks.
 	FindTasks(ctx context.Context, filter TaskFilter) ([]*Task, int, error)

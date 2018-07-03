@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path"
 	"strconv"
@@ -503,6 +504,19 @@ func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfo
 	defer resp.Body.Close()
 
 	return &task, nil
+}
+
+func (s *TaskService) FindTask(ctx context.Context, filter platform.TaskFilter) (*platform.Task, error) {
+	tasks, n, err := s.FindTasks(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if n == 0 {
+		return nil, errors.New("found no matching tasks")
+	}
+
+	return tasks[0], nil
 }
 
 func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
