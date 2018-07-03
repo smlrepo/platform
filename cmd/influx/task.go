@@ -86,11 +86,69 @@ func taskFindF(cmd *cobra.Command, args []string) {
 		Addr:  flags.host,
 		Token: flags.token,
 	}
+
+	filter := platform.TaskFilter{}
+	if taskFindFlags.id != "" {
+		filter.ID = &platform.ID{}
+		err := filter.ID.DecodeFromString(taskFindFlags.id)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	if taskFindFlags.orgID != "" {
+		filter.Organization = &platform.ID{}
+		err := filter.Organization.DecodeFromString(taskFindFlags.orgID)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
+	tasks, _, err := s.FindTasks(context.Background(), filter)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+		"Name",
+		"Flux",
+		"Retention",
+	)
+	for _, task := range tasks {
+		w.Write(map[string]interface{}{
+			"ID":        task.ID.String(),
+			"Name":      task.Name,
+			"Flux":      task.Flux,
+			"Retention": task.Status,
+		})
+	}
+	w.Flush()
 }
 
 // Update Command
 type TaskUpdateFlags struct {
 	flux string
+	id   string
+}
+
+var taskUpdateFlags TaskUpdateFlags
+
+func init() {
+	taskUpdateCmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update task",
+		Run:   taskUpdateF,
+	}
+
+	taskUpdateCmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID")
+	taskUpdateCmd.Flags().StringVarP(&taskUpdateFlags.flux, "flux", "f", "", "flux command")
+
+	taskCmd.AddCommand(taskUpdateCmd)
 }
 
 func taskUpdateF(cmd *cobra.Command, args []string) {
@@ -98,6 +156,38 @@ func taskUpdateF(cmd *cobra.Command, args []string) {
 		Addr:  flags.host,
 		Token: flags.token,
 	}
+
+	var id platform.ID
+	if err := id.DecodeFromString(taskUpdateFlags.id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	update := platform.TaskUpdate{}
+	if taskUpdateFlags.flux != "" {
+		update.Flux = &taskUpdateFlags.flux
+	}
+
+	task, err := s.UpdateTask(context.Background(), id, update)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+		"Name",
+		"Flux",
+		"Retention",
+	)
+	w.Write(map[string]interface{}{
+		"ID":        task.ID.String(),
+		"Name":      task.Name,
+		"Flux":      task.Flux,
+		"Retention": task.Status,
+	})
+	w.Flush()
 }
 
 // Delete command
@@ -105,11 +195,61 @@ type TaskDeleteFlags struct {
 	id string
 }
 
+var taskDeleteFlags TaskDeleteFlags
+
+func init() {
+	taskDeleteCmd := &cobra.Command{
+		Use:   "delete",
+		Short: "Delete task",
+		Run:   taskDeleteF,
+	}
+
+	taskDeleteCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
+
+	taskCmd.AddCommand(taskDeleteCmd)
+}
+
 func taskDeleteF(cmd *cobra.Command, args []string) {
 	s := &http.TaskService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
+
+	var id platform.ID
+	err := id.DecodeFromString(taskDeleteFlags.id)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	ctx := context.TODO()
+	task, err := s.FindTaskByID(ctx, id)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err = s.DeleteTask(ctx, id); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	w := internal.NewTabWriter(os.Stdout)
+	w.WriteHeaders(
+		"ID",
+		"Name",
+		"Flux",
+		"Retention",
+		"Deleted",
+	)
+	w.Write(map[string]interface{}{
+		"ID":        task.ID.String(),
+		"Name":      task.Name,
+		"Flux":      task.Flux,
+		"Retention": task.Status,
+		"Deleted":   true,
+	})
+	w.Flush()
 }
 
 // Owner management
