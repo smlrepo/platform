@@ -13,6 +13,7 @@ type Task struct {
 	Every        string `json:"every,omitempty"`
 	Cron         string `json:"cron,omitempty"`
 	Last         Run    `json:"last,omitempty"`
+	Owners       []ID   `json:"owners"`
 }
 
 // Run is a record created when a run of a task is queued.
@@ -61,11 +62,13 @@ type TaskService interface {
 
 // TaskUpdate represents updates to a task
 type TaskUpdate struct {
-	Flux *string `json:"flux"`
+	Flux   *string `json:"flux"`
+	Owners *[]ID   `json:"owners"`
 }
 
 // TaskFilter represents a set of filters that restrict the returned results
 type TaskFilter struct {
+	ID           *ID
 	After        *ID
 	Organization *ID
 	User         *ID

@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"path"
 	"strconv"
 
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
+
+const taskPath = "/v1/tasks"
 
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
@@ -468,4 +471,55 @@ type TaskService struct {
 	Addr               string
 	Token              string
 	InsecureSkipVerify bool
+}
+
+func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+	u, err := newURL(s.Addr, bucketIDPath(id))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var task platform.Task
+	if err := json.NewDecoder(resp.Body).Decode(&task); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return &task, nil
+}
+
+func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+
+}
+
+func (s *TaskService) CreateTask(ctx context.Context, t *platform.Task) error {
+
+}
+
+func (s *TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+
+}
+
+func (s *TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
+
+}
+
+func taskIDPath(id platform.ID) string {
+	return path.Join(taskPath, id.String())
 }

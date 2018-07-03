@@ -59,6 +59,59 @@ func taskCreateF(cmd *cobra.Command, args []string) {
 	}
 }
 
+// Find Command
+// TODO: add filter by owner
+type TaskFindFlags struct {
+	id    string
+	orgID string
+}
+
+var taskFindFlags TaskFindFlags
+
+func init() {
+	taskFindCmd := &cobra.Command{
+		Use:   "find",
+		Short: "Find tasks",
+		Run:   taskFindF,
+	}
+
+	taskFindCmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
+	taskFindCmd.Flags().StringVarP(&taskFindFlags.orgID, "org-id", "", "", "task organization ID")
+
+	taskCmd.AddCommand(taskFindCmd)
+}
+
+func taskFindF(cmd *cobra.Command, args []string) {
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+}
+
+// Update Command
+type TaskUpdateFlags struct {
+	flux string
+}
+
+func taskUpdateF(cmd *cobra.Command, args []string) {
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+}
+
+// Delete command
+type TaskDeleteFlags struct {
+	id string
+}
+
+func taskDeleteF(cmd *cobra.Command, args []string) {
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+}
+
 // Owner management
 var taskOwnersCmd = &cobra.Command{
 	Use:   "owners",
@@ -250,10 +303,6 @@ func taskOwnersDeleteF(cmd *cobra.Command, args []string) {
 	}
 
 	filter := platform.TaskFilter{}
-	if taskOwnersDeleteFlags.name != "" {
-		filter.Name = &taskOwnersDeleteFlags.name
-	}
-
 	if taskOwnersDeleteFlags.id != "" {
 		filter.ID = &platform.ID{}
 		err := filter.ID.DecodeFromString(taskOwnersDeleteFlags.id)

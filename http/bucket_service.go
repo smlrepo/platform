@@ -13,6 +13,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+const bucketPath = "/v1/buckets"
+
 // BucketHandler represents an HTTP API handler for buckets.
 type BucketHandler struct {
 	*httprouter.Router
@@ -258,10 +260,6 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 		BucketID: i,
 	}, nil
 }
-
-const (
-	bucketPath = "/v1/buckets"
-)
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
 type BucketService struct {
