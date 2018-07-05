@@ -50,7 +50,7 @@ func init() {
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) {
-	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
+	if bucketCreateFlags.org == "" && bucketCreateFlags.orgID == "" {
 		fmt.Println("must specify exactly one of org or org-id")
 		cmd.Usage()
 		os.Exit(1)
@@ -147,7 +147,7 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
+	if bucketFindFlags.orgID == "" && bucketFindFlags.org == "" {
 		fmt.Println("must specify at exactly one of org and org-id")
 		cmd.Usage()
 		os.Exit(1)
