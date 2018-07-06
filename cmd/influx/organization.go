@@ -369,15 +369,15 @@ func organizationOwnersAddF(cmd *cobra.Command, args []string) {
 	var upd platform.OrganizationUpdate
 	owners := organization.Owners
 
-	updateRequired := false
+	ownerExists := false
 	for _, owner := range owners {
-		if owner.String() == organizationOwnersAddFlags.ownerId {
-			updateRequired = true
+		if owner.String() != organizationOwnersAddFlags.ownerId {
+			ownerExists = true
 			break
 		}
 	}
 
-	if updateRequired {
+	if ownerExists {
 		id := &platform.ID{}
 		err := id.DecodeFromString(organizationOwnersAddFlags.ownerId)
 		if err != nil {

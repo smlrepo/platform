@@ -367,15 +367,15 @@ func taskOwnersAddF(cmd *cobra.Command, args []string) {
 	var upd platform.TaskUpdate
 	owners := task.Owners
 
-	updateRequired := false
+	ownerExists := false
 	for _, owner := range owners {
-		if owner.String() == taskOwnersAddFlags.ownerId {
-			updateRequired = true
+		if owner.String() != taskOwnersAddFlags.ownerId {
+			ownerExists = true
 			break
 		}
 	}
 
-	if updateRequired {
+	if ownerExists {
 		id := &platform.ID{}
 		err := id.DecodeFromString(taskOwnersAddFlags.ownerId)
 		if err != nil {

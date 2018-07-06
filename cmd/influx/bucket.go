@@ -448,15 +448,15 @@ func bucketOwnersAddF(cmd *cobra.Command, args []string) {
 	var upd platform.BucketUpdate
 	owners := bucket.Owners
 
-	updateRequired := false
+	ownerExists := false
 	for _, owner := range owners {
-		if owner.String() == bucketOwnersAddFlags.ownerId {
-			updateRequired = true
+		if owner.String() != bucketOwnersAddFlags.ownerId {
+			ownerExists = true
 			break
 		}
 	}
 
-	if updateRequired {
+	if !ownerExists {
 		id := &platform.ID{}
 		err := id.DecodeFromString(bucketOwnersAddFlags.ownerId)
 		if err != nil {
