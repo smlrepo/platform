@@ -423,35 +423,35 @@ func init() {
 	organizationOwnersCmd.AddCommand(organizationOwnersAddCmd)
 }
 
-// Delete Owner
-type OrganizationOwnersDeleteFlags struct {
+// Remove Owner
+type OrganizationOwnersRemoveFlags struct {
 	name    string
 	id      string
 	ownerId string
 }
 
-var organizationOwnersDeleteFlags OrganizationOwnersDeleteFlags
+var organizationOwnersRemoveFlags OrganizationOwnersRemoveFlags
 
-func organizationOwnersDeleteF(cmd *cobra.Command, args []string) {
+func organizationOwnersRemoveF(cmd *cobra.Command, args []string) {
 	s := &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
-	if organizationOwnersDeleteFlags.id == "" && organizationOwnersDeleteFlags.name == "" {
+	if organizationOwnersRemoveFlags.id == "" && organizationOwnersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationOwnersDeleteFlags.name != "" {
-		filter.Name = &organizationOwnersDeleteFlags.name
+	if organizationOwnersRemoveFlags.name != "" {
+		filter.Name = &organizationOwnersRemoveFlags.name
 	}
 
-	if organizationOwnersDeleteFlags.id != "" {
+	if organizationOwnersRemoveFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationOwnersDeleteFlags.id)
+		err := filter.ID.DecodeFromString(organizationOwnersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -468,7 +468,7 @@ func organizationOwnersDeleteF(cmd *cobra.Command, args []string) {
 	owners := organization.Owners
 
 	for i, owner := range owners {
-		if owner.String() == organizationOwnersDeleteFlags.ownerId {
+		if owner.String() == organizationOwnersRemoveFlags.ownerId {
 			updatedOwners := append(owners[:i], owners[i+1:]...)
 			upd.Owners = &updatedOwners
 			_, err = s.UpdateOrganization(context.Background(), organization.ID, upd)
@@ -495,16 +495,16 @@ func organizationOwnersDeleteF(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	organizationOwnersDeleteCmd := &cobra.Command{
+	organizationOwnersRemoveCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Delete organization owner",
-		Run:   organizationOwnersDeleteF,
+		Short: "Remove organization owner",
+		Run:   organizationOwnersRemoveF,
 	}
 
-	organizationOwnersDeleteCmd.Flags().StringVarP(&organizationOwnersDeleteFlags.id, "id", "i", "", "organization id")
-	organizationOwnersDeleteCmd.Flags().StringVarP(&organizationOwnersDeleteFlags.name, "name", "n", "", "organization name")
-	organizationOwnersDeleteCmd.Flags().StringVarP(&organizationOwnersDeleteFlags.ownerId, "owner", "o", "", "owner id")
-	organizationOwnersDeleteCmd.MarkFlagRequired("owner")
+	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.id, "id", "i", "", "organization id")
+	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.name, "name", "n", "", "organization name")
+	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
+	organizationOwnersRemoveCmd.MarkFlagRequired("owner")
 
-	organizationOwnersCmd.AddCommand(organizationOwnersDeleteCmd)
+	organizationOwnersCmd.AddCommand(organizationOwnersRemoveCmd)
 }

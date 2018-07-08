@@ -485,7 +485,7 @@ func (s *TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfo
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", s.Token)
+	req.Header.Set("Authorization", "Token "+s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -539,7 +539,7 @@ func (s *TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter)
 	}
 
 	req.URL.RawQuery = query.Encode()
-	req.Header.Set("Authorization", s.Token)
+	req.Header.Set("Authorization", "Token "+s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -577,7 +577,7 @@ func (s *TaskService) CreateTask(ctx context.Context, task *platform.Task) error
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	req.Header.Set("Authorization", "Token "+s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -615,7 +615,7 @@ func (s *TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", s.Token)
+	req.Header.Set("Authorization", "Token "+s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 
@@ -647,7 +647,7 @@ func (s *TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", s.Token)
+	req.Header.Set("Authorization", "Token "+s.Token)
 
 	hc := newClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)

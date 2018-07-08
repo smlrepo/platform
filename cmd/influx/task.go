@@ -37,7 +37,7 @@ func init() {
 	}
 
 	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.name, "name", "n", "", "task name")
-	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.flux, "flux", "f", "", "ifql to execute")
+	taskCreateCmd.Flags().StringVarP(&taskCreateFlags.flux, "flux", "f", "", "flux to create")
 
 	taskCmd.AddCommand(taskCreateCmd)
 }
@@ -117,14 +117,14 @@ func taskFindF(cmd *cobra.Command, args []string) {
 		"ID",
 		"Name",
 		"Flux",
-		"Retention",
+		"Status",
 	)
 	for _, task := range tasks {
 		w.Write(map[string]interface{}{
-			"ID":        task.ID.String(),
-			"Name":      task.Name,
-			"Flux":      task.Flux,
-			"Retention": task.Status,
+			"ID":     task.ID.String(),
+			"Name":   task.Name,
+			"Flux":   task.Flux,
+			"Status": task.Status,
 		})
 	}
 	w.Flush()
@@ -179,13 +179,13 @@ func taskUpdateF(cmd *cobra.Command, args []string) {
 		"ID",
 		"Name",
 		"Flux",
-		"Retention",
+		"Status",
 	)
 	w.Write(map[string]interface{}{
-		"ID":        task.ID.String(),
-		"Name":      task.Name,
-		"Flux":      task.Flux,
-		"Retention": task.Status,
+		"ID":     task.ID.String(),
+		"Name":   task.Name,
+		"Flux":   task.Flux,
+		"Status": task.Status,
 	})
 	w.Flush()
 }
@@ -239,15 +239,15 @@ func taskDeleteF(cmd *cobra.Command, args []string) {
 		"ID",
 		"Name",
 		"Flux",
-		"Retention",
+		"Status",
 		"Deleted",
 	)
 	w.Write(map[string]interface{}{
-		"ID":        task.ID.String(),
-		"Name":      task.Name,
-		"Flux":      task.Flux,
-		"Retention": task.Status,
-		"Deleted":   true,
+		"ID":      task.ID.String(),
+		"Name":    task.Name,
+		"Flux":    task.Flux,
+		"Status":  task.Status,
+		"Deleted": true,
 	})
 	w.Flush()
 }
@@ -421,31 +421,31 @@ func init() {
 	taskOwnersCmd.AddCommand(taskOwnersAddCmd)
 }
 
-// Delete Owner
-type TaskOwnersDeleteFlags struct {
+// Remove Owner
+type TaskOwnersRemoveFlags struct {
 	name    string
 	id      string
 	ownerId string
 }
 
-var taskOwnersDeleteFlags TaskOwnersDeleteFlags
+var taskOwnersRemoveFlags TaskOwnersRemoveFlags
 
-func taskOwnersDeleteF(cmd *cobra.Command, args []string) {
+func taskOwnersRemoveF(cmd *cobra.Command, args []string) {
 	s := &http.TaskService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
-	if taskOwnersDeleteFlags.id == "" && taskOwnersDeleteFlags.name == "" {
+	if taskOwnersRemoveFlags.id == "" && taskOwnersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
 	filter := platform.TaskFilter{}
-	if taskOwnersDeleteFlags.id != "" {
+	if taskOwnersRemoveFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(taskOwnersDeleteFlags.id)
+		err := filter.ID.DecodeFromString(taskOwnersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -462,7 +462,7 @@ func taskOwnersDeleteF(cmd *cobra.Command, args []string) {
 	owners := task.Owners
 
 	for i, owner := range owners {
-		if owner.String() == taskOwnersDeleteFlags.ownerId {
+		if owner.String() == taskOwnersRemoveFlags.ownerId {
 			updatedOwners := append(owners[:i], owners[i+1:]...)
 			upd.Owners = &updatedOwners
 			_, err = s.UpdateTask(context.Background(), task.ID, upd)
@@ -489,16 +489,16 @@ func taskOwnersDeleteF(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	taskOwnersDeleteCmd := &cobra.Command{
+	taskOwnersRemoveCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Delete task owner",
-		Run:   taskOwnersDeleteF,
+		Short: "Remove task owner",
+		Run:   taskOwnersRemoveF,
 	}
 
-	taskOwnersDeleteCmd.Flags().StringVarP(&taskOwnersDeleteFlags.id, "id", "i", "", "task id")
-	taskOwnersDeleteCmd.Flags().StringVarP(&taskOwnersDeleteFlags.name, "name", "n", "", "task name")
-	taskOwnersDeleteCmd.Flags().StringVarP(&taskOwnersDeleteFlags.ownerId, "owner", "o", "", "owner id")
-	taskOwnersDeleteCmd.MarkFlagRequired("owner")
+	taskOwnersRemoveCmd.Flags().StringVarP(&taskOwnersRemoveFlags.id, "id", "i", "", "task id")
+	taskOwnersRemoveCmd.Flags().StringVarP(&taskOwnersRemoveFlags.name, "name", "n", "", "task name")
+	taskOwnersRemoveCmd.Flags().StringVarP(&taskOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
+	taskOwnersRemoveCmd.MarkFlagRequired("owner")
 
-	taskOwnersCmd.AddCommand(taskOwnersDeleteCmd)
+	taskOwnersCmd.AddCommand(taskOwnersRemoveCmd)
 }

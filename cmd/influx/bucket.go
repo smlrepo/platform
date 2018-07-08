@@ -502,35 +502,35 @@ func init() {
 	bucketOwnersCmd.AddCommand(bucketOwnersAddCmd)
 }
 
-// Delete Owner
-type BucketOwnersDeleteFlags struct {
+// Remove Owner
+type BucketOwnersRemoveFlags struct {
 	name    string
 	id      string
 	ownerId string
 }
 
-var bucketOwnersDeleteFlags BucketOwnersDeleteFlags
+var BucketOwnersRemoveFlags BucketOwnersRemoveFlags
 
-func bucketOwnersDeleteF(cmd *cobra.Command, args []string) {
+func BucketOwnersRemoveF(cmd *cobra.Command, args []string) {
 	s := &http.BucketService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
-	if bucketOwnersDeleteFlags.id == "" && bucketOwnersDeleteFlags.name == "" {
+	if BucketOwnersRemoveFlags.id == "" && BucketOwnersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
 	filter := platform.BucketFilter{}
-	if bucketOwnersDeleteFlags.name != "" {
-		filter.Name = &bucketOwnersDeleteFlags.name
+	if BucketOwnersRemoveFlags.name != "" {
+		filter.Name = &BucketOwnersRemoveFlags.name
 	}
 
-	if bucketOwnersDeleteFlags.id != "" {
+	if BucketOwnersRemoveFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(bucketOwnersDeleteFlags.id)
+		err := filter.ID.DecodeFromString(BucketOwnersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -547,7 +547,7 @@ func bucketOwnersDeleteF(cmd *cobra.Command, args []string) {
 	owners := bucket.Owners
 
 	for i, owner := range owners {
-		if owner.String() == bucketOwnersDeleteFlags.ownerId {
+		if owner.String() == BucketOwnersRemoveFlags.ownerId {
 			updatedOwners := append(owners[:i], owners[i+1:]...)
 			upd.Owners = &updatedOwners
 			_, err = s.UpdateBucket(context.Background(), bucket.ID, upd)
@@ -574,16 +574,16 @@ func bucketOwnersDeleteF(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	bucketOwnersDeleteCmd := &cobra.Command{
+	BucketOwnersRemoveCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Delete bucket owner",
-		Run:   bucketOwnersDeleteF,
+		Short: "Remove bucket owner",
+		Run:   BucketOwnersRemoveF,
 	}
 
-	bucketOwnersDeleteCmd.Flags().StringVarP(&bucketOwnersDeleteFlags.id, "id", "i", "", "bucket id")
-	bucketOwnersDeleteCmd.Flags().StringVarP(&bucketOwnersDeleteFlags.name, "name", "n", "", "bucket name")
-	bucketOwnersDeleteCmd.Flags().StringVarP(&bucketOwnersDeleteFlags.ownerId, "owner", "o", "", "owner id")
-	bucketOwnersDeleteCmd.MarkFlagRequired("owner")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.id, "id", "i", "", "bucket id")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.name, "name", "n", "", "bucket name")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
+	BucketOwnersRemoveCmd.MarkFlagRequired("owner")
 
-	bucketOwnersCmd.AddCommand(bucketOwnersDeleteCmd)
+	bucketOwnersCmd.AddCommand(BucketOwnersRemoveCmd)
 }
