@@ -36,6 +36,12 @@ type BucketService interface {
 
 	// DeleteBucket removes a bucket by ID.
 	DeleteBucket(ctx context.Context, id ID) error
+
+	// AddBucketOwner adds a new owner to a bucket.
+	AddBucketOwner(ctx context.Context, bucketID ID, ownerID ID) error
+
+	// RemoveBucketOwner removes an owner from a bucket.
+	RemoveBucketOwner(ctx context.Context, bucketID ID, ownerID ID) error
 }
 
 // BucketUpdate represents updates to a bucket.
@@ -43,7 +49,6 @@ type BucketService interface {
 type BucketUpdate struct {
 	Name            *string        `json:"name,omitempty"`
 	RetentionPeriod *time.Duration `json:"retentionPeriod,omitempty"`
-	Owners          *[]ID          `json:"owners"`
 }
 
 // BucketFilter represents a set of filter that restrict the returned results.

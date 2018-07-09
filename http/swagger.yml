@@ -671,6 +671,90 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/owners':
+    get:
+      tags:
+        - Tasks
+      summary: Get list of task owners
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task
+      responses:
+        '200':
+          description: list of task owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owners"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Tasks
+      summary: Add an owner to a task
+      requestBody:
+        description: owner to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task
+      responses:
+        '200':
+          description: list of task owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owners"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/tasks/{taskId}/owners/{ownerId}':
+    delete:
+      tags:
+        - Tasks
+      summary: Remove a task owner
+      description: Removes a user from the list of owners for a task
+      parameters:
+        - in: path
+          name: taskId
+          schema:
+            type: string
+          required: true
+          description: ID of task
+        - in: path
+          name: ownerId
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+      responses:
+        '204':
+          description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/tasks/{taskId}/runs':
     get:
       tags:

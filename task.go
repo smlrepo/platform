@@ -50,6 +50,12 @@ type TaskService interface {
 	// Removes a task by ID and purges all associated data and scheduled runs
 	DeleteTask(ctx context.Context, id ID) error
 
+	// AddTaskOwner adds a new owner to a task.
+	AddTaskOwner(ctx context.Context, taskID ID, ownerID ID) error
+
+	// RemoveTaskOwner removes an owner from a task.
+	RemoveTaskOwner(ctx context.Context, taskID ID, ownerID ID) error
+
 	// Returns logs for a run.
 	FindLogs(ctx context.Context, filter LogFilter) ([]*Log, int, error)
 
@@ -65,8 +71,7 @@ type TaskService interface {
 
 // TaskUpdate represents updates to a task
 type TaskUpdate struct {
-	Flux   *string `json:"flux"`
-	Owners *[]ID   `json:"owners"`
+	Flux *string `json:"flux"`
 }
 
 // TaskFilter represents a set of filters that restrict the returned results

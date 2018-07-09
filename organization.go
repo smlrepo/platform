@@ -30,13 +30,18 @@ type OrganizationService interface {
 
 	// Removes a organization by ID.
 	DeleteOrganization(ctx context.Context, id ID) error
+
+	// AddOrganizationOwner adds a new owner to a bucket.
+	AddOrganizationOwner(ctx context.Context, orgID ID, ownerID ID) error
+
+	// RemoveOrganizationOwner removes an owner from a bucket.
+	RemoveOrganizationOwner(ctx context.Context, orgID ID, ownerID ID) error
 }
 
 // OrganizationUpdate represents updates to a organization.
 // Only fields which are set are updated.
 type OrganizationUpdate struct {
-	Name   *string
-	Owners *[]ID
+	Name *string
 }
 
 // OrganizationFilter represents a set of filter that restrict the returned results.

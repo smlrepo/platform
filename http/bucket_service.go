@@ -464,6 +464,14 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	return CheckError(resp)
 }
 
+func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
+
+}
+
+func (s *BucketService) RemoveBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
+
+}
+
 func bucketIDPath(id platform.ID) string {
 	return path.Join(bucketPath, id.String())
 }
