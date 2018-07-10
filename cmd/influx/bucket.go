@@ -56,6 +56,12 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
+		fmt.Println("must specify at exactly one of org and org-id")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
 	s := &http.BucketService{
 		Addr:  flags.host,
 		Token: flags.token,
@@ -128,6 +134,18 @@ func init() {
 }
 
 func bucketFindF(cmd *cobra.Command, args []string) {
+	if bucketFindFlags.orgID == "" && bucketFindFlags.org == "" {
+		fmt.Println("must specify at exactly one of org and org-id")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
+		fmt.Println("must specify at exactly one of org and org-id")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
 	s := &http.BucketService{
 		Addr:  flags.host,
 		Token: flags.token,
@@ -145,12 +163,6 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-	}
-
-	if bucketFindFlags.orgID == "" && bucketFindFlags.org == "" {
-		fmt.Println("must specify at exactly one of org and org-id")
-		cmd.Usage()
-		os.Exit(1)
 	}
 
 	if bucketFindFlags.orgID != "" {
