@@ -611,19 +611,93 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	return CheckError(resp)
 }
 
-func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
+func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner platform.owner) error {
 	u, err := newURL(s.Addr, bucketOwnerPath(bucketID))
 	if err != nil {
 		return err
 	}
+
+	octets, err := json.Marshal(owner)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(owner); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *BucketService) GetBucketOwners(ctx context.Context, bucketID platform.ID) (*[]platform.Owner, error) {
+	u, err := newURL(s.Addr, bucketOwnerPath(bucketID))
+	if err != nil {
+		return nil, err
+	}
 
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var owners []*platform.Owner
+	if err := json.NewDecoder(resp.Body).Decode(&owners); err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return owners, nil
 }
 
 func (s *BucketService) RemoveBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
+	u, err := newURL(s.Addr, bucketOwnerIDPath(bucketID, ownerID))
+	if err != nil {
+		return err
+	}
 
+	req, err := http.NewRequest("DELETE", u.String(), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", s.Token)
+
+	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	return CheckError(resp)
 }
 
 func bucketIDPath(id platform.ID) string {
