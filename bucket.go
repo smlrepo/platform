@@ -3,8 +3,6 @@ package platform
 import (
 	"context"
 	"time"
-
-	"github.com/influxdata/platform"
 )
 
 // Bucket is a bucket. 🎉
@@ -40,7 +38,7 @@ type BucketService interface {
 	DeleteBucket(ctx context.Context, id ID) error
 
 	// AddBucketOwner adds a new owner to a bucket.
-	AddBucketOwner(ctx context.Context, bucketID ID, owner platform.Owner) error
+	AddBucketOwner(ctx context.Context, bucketID ID, owner Owner) error
 
 	GetBucketOwners(ctx context.Context, bucketID ID) (*[]Owner, error)
 
