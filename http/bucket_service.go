@@ -33,6 +33,10 @@ func NewBucketHandler() *BucketHandler {
 	h.HandlerFunc("GET", "/v1/buckets/:id", h.handleGetBucket)
 	h.HandlerFunc("PATCH", "/v1/buckets/:id", h.handlePatchBucket)
 	h.HandlerFunc("DELETE", "/v1/buckets/:id", h.handleDeleteBucket)
+	h.HandlerFunc("GET", "/v1/buckets/:id/owners", h.handleGetOwners)
+	h.HandlerFunc("POST", "/v1/buckets/:id/owners", h.handlePostOwner)
+	h.HandlerFunc("DELETE", "/v1/buckets/:id/owners/:oid", h.handleDeleteOwner)
+
 	return h
 }
 
@@ -261,6 +265,149 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 	}, nil
 }
 
+func (h *BucketHandler) handleGetOwners(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetOwnersRequest(ctx, r)
+	if err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	owners, err := h.BucketService.GetBucketOwners(ctx, req.BucketID)
+	if err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, owners); err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+}
+
+type getOwnerRequest struct {
+	BucketID platform.ID
+}
+
+func decodeGetOwnersRequest(ctx context.Context, r *http.Request) (*getOwnerRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req := &getOwnerRequest{
+		BucketID: i,
+	}
+
+	return req, nil
+}
+
+func (h *BucketHandler) handlePostOwner(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodePostOwnerRequest(ctx, r)
+	if err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.BucketService.AddBucketOwner(ctx, req.BucketID, req.Owner); err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, req.Owner); err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+}
+
+type postOwnerRequest struct {
+	BucketID platform.ID
+	Owner    *platform.Owner
+}
+
+func decodePostOwnerRequest(ctx context.Context, r *http.Request) (*postOwnerRequest, error) {
+	o := &platform.Owner{}
+	if err := json.NewDecoder(r.Body).Decode(o); err != nil {
+		return nil, err
+	}
+
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing bucket id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	return &postOwnerRequest{
+		BucketID: i,
+		Owner:    o,
+	}, nil
+}
+
+func (h *BucketHandler) handleDeleteOwner(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeDeleteOwnerRequest(ctx, r)
+	if err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	if err := h.BucketService.RemoveBucketOwner(ctx, req.BucketID, req.OwnerID); err != nil {
+		kerrors.EncodeHTTP(ctx, err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+type deleteOwnerRequest struct {
+	BucketID platform.ID
+	OwnerID  platform.ID
+}
+
+func decodeDeleteOwnerRequest(ctx context.Context, r *http.Request) (*deleteOwnerRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing bucket id")
+	}
+
+	var bucketID platform.ID
+	if err := bucketID.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	id = params.ByName("oid")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing owner id")
+	}
+
+	var ownerID platform.ID
+	if err := ownerID.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	req := &deleteOwnerRequest{
+		BucketID: bucketID,
+		OwnerID:  ownerID,
+	}
+
+	return req, nil
+}
+
 // BucketService connects to Influx via HTTP using tokens to manage buckets
 type BucketService struct {
 	Addr               string
@@ -465,6 +612,13 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 }
 
 func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
+	u, err := newURL(s.Addr, bucketOwnerPath(bucketID))
+	if err != nil {
+		return err
+	}
+}
+
+func (s *BucketService) GetBucketOwners(ctx context.Context, bucketID platform.ID) (*[]platform.Owner, error) {
 
 }
 
@@ -474,4 +628,12 @@ func (s *BucketService) RemoveBucketOwner(ctx context.Context, bucketID platform
 
 func bucketIDPath(id platform.ID) string {
 	return path.Join(bucketPath, id.String())
+}
+
+func bucketOwnerPath(bucketID platform.ID) string {
+	return path.Join(bucketIDPath(bucketID), "owners")
+}
+
+func bucketOwnerIDPath(bucketID platform.ID, ownerID platform.ID) string {
+	return path.Join(bucketOwnerPath(bucketID), ownerID.String())
 }
