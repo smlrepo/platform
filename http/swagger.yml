@@ -429,6 +429,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/buckets/{bucketId}/owners':
+    get:
+      tags:
+        - Buckets
+      summary: Get list of bucket owners
+      parameters:
+        - in: path
+          name: bucketId
+          schema:
+            type: string
+          required: true
+          description: ID of bucket
+      responses:
+        '200':
+          description: list of bucket owners
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owners"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      tags:
+        - Buckets
+      summary: Add an owner to a bucket
+      requestBody:
+        description: owner to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+      parameters:
+        - in: path
+          name: bucketId
+          schema:
+            type: string
+          required: true
+          description: ID of bucket
+      responses:
+        '201':
+          description: owner added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Owners"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/buckets/{bucketId}/owners/{ownerId}':
+    delete:
+      tags:
+        - Buckets
+      summary: Remove a bucket owner
+      parameters:
+        - in: path
+          name: bucketId
+          schema:
+            type: string
+          required: true
+          description: ID of bucket
+        - in: path
+          name: ownerId
+          schema:
+            type: string
+          required: true
+          description: ID of owner to remove
+      responses:
+        '204':
+          description: owner removed
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /orgs:
     get:
       tags:
@@ -684,8 +767,8 @@ paths:
           required: true
           description: ID of task
       responses:
-        '200':
-          description: list of task owners
+        '201':
+          description: owner added
           content:
             application/json:
               schema:
