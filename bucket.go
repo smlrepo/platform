@@ -12,7 +12,7 @@ type Bucket struct {
 	Organization    string        `json:"organization,omitempty"`
 	Name            string        `json:"name"`
 	RetentionPeriod time.Duration `json:"retentionPeriod"`
-	Owners          []ID          `json:"owners"`
+	Owners          []Owner       `json:"owners"`
 }
 
 // BucketService represents a service for managing bucket data.

@@ -4,9 +4,9 @@ import "context"
 
 // Organization is a organization. 🎉
 type Organization struct {
-	ID     ID     `json:"id"`
-	Name   string `json:"name"`
-	Owners []ID   `json:"owners"`
+	ID     ID      `json:"id"`
+	Name   string  `json:"name"`
+	Owners []Owner `json:"owners"`
 }
 
 // OrganizationService represents a service for managing organization data.
