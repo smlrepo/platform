@@ -56,8 +56,8 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
-		fmt.Println("must specify at exactly one of org and org-id")
+	if bucketCreateFlags.org != "" && bucketCreateFlags.orgID != "" {
+		fmt.Println("must specify exactly one of org and org-id")
 		cmd.Usage()
 		os.Exit(1)
 	}
@@ -135,13 +135,13 @@ func init() {
 
 func bucketFindF(cmd *cobra.Command, args []string) {
 	if bucketFindFlags.orgID == "" && bucketFindFlags.org == "" {
-		fmt.Println("must specify at exactly one of org and org-id")
+		fmt.Println("must specify exactly one of org and org-id")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
 	if bucketFindFlags.orgID != "" && bucketFindFlags.org != "" {
-		fmt.Println("must specify at exactly one of org and org-id")
+		fmt.Println("must specify exactly one of org and org-id")
 		cmd.Usage()
 		os.Exit(1)
 	}
@@ -357,15 +357,21 @@ type BucketOwnersListFlags struct {
 var bucketOwnersListFlags BucketOwnersListFlags
 
 func bucketOwnersListF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
 	if bucketOwnersListFlags.id == "" && bucketOwnersListFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
+	}
+
+	if bucketOwnersListFlags.id != "" && bucketOwnersListFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	s := &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
 	}
 
 	filter := platform.BucketFilter{}
@@ -426,15 +432,21 @@ type BucketOwnersAddFlags struct {
 var bucketOwnersAddFlags BucketOwnersAddFlags
 
 func bucketOwnersAddF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
 	if bucketOwnersAddFlags.id == "" && bucketOwnersAddFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
+	}
+
+	if bucketOwnersAddFlags.id != "" && bucketOwnersAddFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	s := &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
 	}
 
 	filter := platform.BucketFilter{}
@@ -521,28 +533,34 @@ type BucketOwnersRemoveFlags struct {
 	ownerId string
 }
 
-var BucketOwnersRemoveFlags BucketOwnersRemoveFlags
+var bucketOwnersRemoveFlags BucketOwnersRemoveFlags
 
 func BucketOwnersRemoveF(cmd *cobra.Command, args []string) {
-	s := &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
-	if BucketOwnersRemoveFlags.id == "" && BucketOwnersRemoveFlags.name == "" {
+	if bucketOwnersRemoveFlags.id == "" && bucketOwnersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
-	filter := platform.BucketFilter{}
-	if BucketOwnersRemoveFlags.name != "" {
-		filter.Name = &BucketOwnersRemoveFlags.name
+	if bucketOwnersRemoveFlags.id != "" && bucketOwnersRemoveFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
 	}
 
-	if BucketOwnersRemoveFlags.id != "" {
+	s := &http.BucketService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	filter := platform.BucketFilter{}
+	if bucketOwnersRemoveFlags.name != "" {
+		filter.Name = &bucketOwnersRemoveFlags.name
+	}
+
+	if bucketOwnersRemoveFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(BucketOwnersRemoveFlags.id)
+		err := filter.ID.DecodeFromString(bucketOwnersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -559,7 +577,7 @@ func BucketOwnersRemoveF(cmd *cobra.Command, args []string) {
 	owners := bucket.Owners
 
 	for i, owner := range owners {
-		if owner.String() == BucketOwnersRemoveFlags.ownerId {
+		if owner.String() == bucketOwnersRemoveFlags.ownerId {
 			updatedOwners := append(owners[:i], owners[i+1:]...)
 			upd.Owners = &updatedOwners
 			_, err = s.UpdateBucket(context.Background(), bucket.ID, upd)
@@ -592,9 +610,9 @@ func init() {
 		Run:   BucketOwnersRemoveF,
 	}
 
-	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.id, "id", "i", "", "bucket id")
-	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.name, "name", "n", "", "bucket name")
-	BucketOwnersRemoveCmd.Flags().StringVarP(&BucketOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&bucketOwnersRemoveFlags.id, "id", "i", "", "bucket id")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&bucketOwnersRemoveFlags.name, "name", "n", "", "bucket name")
+	BucketOwnersRemoveCmd.Flags().StringVarP(&bucketOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
 	BucketOwnersRemoveCmd.MarkFlagRequired("owner")
 
 	bucketOwnersCmd.AddCommand(BucketOwnersRemoveCmd)
