@@ -270,18 +270,18 @@ func (h *BucketHandler) handleGetOwners(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodeGetOwnersRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	owners, err := h.BucketService.GetBucketOwners(ctx, req.BucketID)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, owners); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -313,17 +313,17 @@ func (h *BucketHandler) handlePostOwner(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodePostOwnerRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.AddBucketOwner(ctx, req.BucketID, req.Owner); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, req.Owner); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 }
@@ -361,12 +361,12 @@ func (h *BucketHandler) handleDeleteOwner(w http.ResponseWriter, r *http.Request
 
 	req, err := decodeDeleteOwnerRequest(ctx, r)
 	if err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.RemoveBucketOwner(ctx, req.BucketID, req.OwnerID); err != nil {
-		kerrors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -611,7 +611,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	return CheckError(resp)
 }
 
-func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner platform.owner) error {
+func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner platform.Owner) error {
 	u, err := newURL(s.Addr, bucketOwnerPath(bucketID))
 	if err != nil {
 		return err
@@ -671,7 +671,7 @@ func (s *BucketService) GetBucketOwners(ctx context.Context, bucketID platform.I
 		return nil, err
 	}
 
-	var owners []*platform.Owner
+	var owners *[]platform.Owner
 	if err := json.NewDecoder(resp.Body).Decode(&owners); err != nil {
 		return nil, err
 	}

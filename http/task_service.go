@@ -35,8 +35,6 @@ func NewTaskHandler() *TaskHandler {
 	h.HandlerFunc("PATCH", "/v1/tasks/:tid", h.handleUpdateTask)
 	h.HandlerFunc("DELETE", "/v1/tasks/:tid", h.handleDeleteTask)
 
-	h.HandlerFunc("GET")
-
 	h.HandlerFunc("GET", "/v1/tasks/:tid/logs", h.handleGetLogs)
 	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
 
