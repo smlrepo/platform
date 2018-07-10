@@ -611,7 +611,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error 
 	return CheckError(resp)
 }
 
-func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner platform.Owner) error {
+func (s *BucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner *platform.Owner) error {
 	u, err := newURL(s.Addr, bucketOwnerPath(bucketID))
 	if err != nil {
 		return err

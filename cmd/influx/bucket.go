@@ -401,9 +401,9 @@ func bucketOwnersListF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 	)
-	for _, id := range owners {
+	for _, owner := range owners {
 		w.Write(map[string]interface{}{
-			"ID": id.String(),
+			"ID": owner.ID.String(),
 		})
 	}
 	w.Flush()
@@ -469,46 +469,20 @@ func bucketOwnersAddF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var upd platform.BucketUpdate
-	owners := bucket.Owners
-
-	ownerExists := false
-	for _, owner := range owners {
-		if owner.String() != bucketOwnersAddFlags.ownerId {
-			ownerExists = true
-			break
-		}
+	ownerID := &platform.ID{}
+	err = ownerID.DecodeFromString(bucketOwnersAddFlags.ownerId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	if !ownerExists {
-		id := &platform.ID{}
-		err := id.DecodeFromString(bucketOwnersAddFlags.ownerId)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		owners = append(owners, *id)
-		upd.Owners = &owners
-
-		_, err = s.UpdateBucket(context.Background(), bucket.ID, upd)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+	owner := &platform.Owner{ID: *ownerID}
+	if err = s.AddBucketOwner(context.Background(), bucket.ID, owner); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	// TODO: look up each user and output their name
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-	)
-	for _, id := range owners {
-		w.Write(map[string]interface{}{
-			"ID": id.String(),
-		})
-	}
-	w.Flush()
+	fmt.Println("Owner added")
 }
 
 func init() {
@@ -573,34 +547,19 @@ func BucketOwnersRemoveF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var upd platform.BucketUpdate
-	owners := bucket.Owners
-
-	for i, owner := range owners {
-		if owner.String() == bucketOwnersRemoveFlags.ownerId {
-			updatedOwners := append(owners[:i], owners[i+1:]...)
-			upd.Owners = &updatedOwners
-			_, err = s.UpdateBucket(context.Background(), bucket.ID, upd)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			// TODO: look up each user and output their name
-			w := internal.NewTabWriter(os.Stdout)
-			w.WriteHeaders(
-				"ID",
-			)
-			for _, id := range updatedOwners {
-				w.Write(map[string]interface{}{
-					"ID": id.String(),
-				})
-			}
-			w.Flush()
-
-			break
-		}
+	ownerID := &platform.ID{}
+	err = ownerID.DecodeFromString(bucketOwnersRemoveFlags.ownerId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
+
+	if err = s.RemoveBucketOwner(context.Background(), bucket.ID, *ownerID); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Owner removed")
 }
 
 func init() {

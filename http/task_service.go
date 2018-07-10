@@ -657,6 +657,18 @@ func (s *TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	return CheckError(resp)
 }
 
+func (s *TaskService) GetTaskOwners(ctx context.Context, taskId platform.ID) (*[]platform.Owner, error) {
+	return &[]platform.Owner{}, nil
+}
+
+func (s *TaskService) AddTaskOwner(ctx context.Context, taskId platform.ID, owner *platform.Owner) error {
+	return nil
+}
+
+func (s *TaskService) RemoveTaskOwner(ctx context.Context, taskId platform.ID, ownerId platform.ID) error {
+	return nil
+}
+
 func taskIDPath(id platform.ID) string {
 	return path.Join(taskPath, id.String())
 }

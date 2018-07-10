@@ -32,7 +32,9 @@ type OrganizationService interface {
 	DeleteOrganization(ctx context.Context, id ID) error
 
 	// AddOrganizationOwner adds a new owner to a bucket.
-	AddOrganizationOwner(ctx context.Context, orgID ID, ownerID ID) error
+	AddOrganizationOwner(ctx context.Context, orgID ID, owner *Owner) error
+
+	GetOrganizationOwners(ctx context.Context, orgID ID) (*[]Owner, error)
 
 	// RemoveOrganizationOwner removes an owner from a bucket.
 	RemoveOrganizationOwner(ctx context.Context, orgID ID, ownerID ID) error

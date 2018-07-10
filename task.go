@@ -51,7 +51,7 @@ type TaskService interface {
 	DeleteTask(ctx context.Context, id ID) error
 
 	// AddTaskOwner adds a new owner to a task.
-	AddTaskOwner(ctx context.Context, taskID ID, ownerID ID) error
+	AddTaskOwner(ctx context.Context, taskID ID, owner *Owner) error
 
 	// RemoveTaskOwner removes an owner from a task.
 	RemoveTaskOwner(ctx context.Context, taskID ID, ownerID ID) error

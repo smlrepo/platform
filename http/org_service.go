@@ -421,6 +421,18 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id platfor
 	return CheckError(resp)
 }
 
+func (s *OrganizationService) GetOrganizationOwners(ctx context.Context, orgId platform.ID) (*[]platform.Owner, error) {
+	return &[]platform.Owner{}, nil
+}
+
+func (s *OrganizationService) AddOrganizationOwner(ctx context.Context, orgId platform.ID, owner *platform.Owner) error {
+	return nil
+}
+
+func (s *OrganizationService) RemoveOrganizationOwner(ctx context.Context, orgId platform.ID, ownerId platform.ID) error {
+	return nil
+}
+
 func organizationIDPath(id platform.ID) string {
 	return path.Join(organizationPath, id.String())
 }

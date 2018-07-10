@@ -272,15 +272,21 @@ type TaskOwnersListFlags struct {
 var taskOwnersListFlags TaskOwnersListFlags
 
 func taskOwnersListF(cmd *cobra.Command, args []string) {
-	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
 	if taskOwnersListFlags.id == "" && taskOwnersListFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
+	}
+
+	if taskOwnersListFlags.id != "" && taskOwnersListFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
 	}
 
 	filter := platform.TaskFilter{}
@@ -306,9 +312,9 @@ func taskOwnersListF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 	)
-	for _, id := range owners {
+	for _, owner := range owners {
 		w.Write(map[string]interface{}{
-			"ID": id.String(),
+			"ID": owner.ID.String(),
 		})
 	}
 	w.Flush()
@@ -337,15 +343,21 @@ type TaskOwnersAddFlags struct {
 var taskOwnersAddFlags TaskOwnersAddFlags
 
 func taskOwnersAddF(cmd *cobra.Command, args []string) {
-	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
 	if taskOwnersAddFlags.id == "" && taskOwnersAddFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
+	}
+
+	if taskOwnersAddFlags.id != "" && taskOwnersAddFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
 	}
 
 	filter := platform.TaskFilter{}
@@ -364,46 +376,20 @@ func taskOwnersAddF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var upd platform.TaskUpdate
-	owners := task.Owners
-
-	ownerExists := false
-	for _, owner := range owners {
-		if owner.String() != taskOwnersAddFlags.ownerId {
-			ownerExists = true
-			break
-		}
+	ownerID := &platform.ID{}
+	err = ownerID.DecodeFromString(bucketOwnersAddFlags.ownerId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	if ownerExists {
-		id := &platform.ID{}
-		err := id.DecodeFromString(taskOwnersAddFlags.ownerId)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		owners = append(owners, *id)
-		upd.Owners = &owners
-
-		_, err = s.UpdateTask(context.Background(), task.ID, upd)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+	owner := &platform.Owner{ID: *ownerID}
+	if err = s.AddTaskOwner(context.Background(), task.ID, owner); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	// TODO: look up each user and output their name
-	w := internal.NewTabWriter(os.Stdout)
-	w.WriteHeaders(
-		"ID",
-	)
-	for _, id := range owners {
-		w.Write(map[string]interface{}{
-			"ID": id.String(),
-		})
-	}
-	w.Flush()
+	fmt.Println("Owner added")
 }
 
 func init() {
@@ -431,15 +417,21 @@ type TaskOwnersRemoveFlags struct {
 var taskOwnersRemoveFlags TaskOwnersRemoveFlags
 
 func taskOwnersRemoveF(cmd *cobra.Command, args []string) {
-	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
-	}
-
 	if taskOwnersRemoveFlags.id == "" && taskOwnersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
+	}
+
+	if taskOwnersRemoveFlags.id != "" && taskOwnersRemoveFlags.name != "" {
+		fmt.Println("must specify exactly one of id and name")
+		cmd.Usage()
+		os.Exit(1)
+	}
+
+	s := &http.TaskService{
+		Addr:  flags.host,
+		Token: flags.token,
 	}
 
 	filter := platform.TaskFilter{}
@@ -458,34 +450,19 @@ func taskOwnersRemoveF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var upd platform.TaskUpdate
-	owners := task.Owners
-
-	for i, owner := range owners {
-		if owner.String() == taskOwnersRemoveFlags.ownerId {
-			updatedOwners := append(owners[:i], owners[i+1:]...)
-			upd.Owners = &updatedOwners
-			_, err = s.UpdateTask(context.Background(), task.ID, upd)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			// TODO: look up each user and output their name
-			w := internal.NewTabWriter(os.Stdout)
-			w.WriteHeaders(
-				"ID",
-			)
-			for _, id := range updatedOwners {
-				w.Write(map[string]interface{}{
-					"ID": id.String(),
-				})
-			}
-			w.Flush()
-
-			break
-		}
+	ownerID := &platform.ID{}
+	err = ownerID.DecodeFromString(bucketOwnersRemoveFlags.ownerId)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
+
+	if err = s.RemoveTaskOwner(context.Background(), task.ID, *ownerID); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Owner removed")
 }
 
 func init() {
