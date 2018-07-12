@@ -310,3 +310,47 @@ func (c *Client) deleteOrganizationsBuckets(ctx context.Context, tx *bolt.Tx, id
 	}
 	return nil
 }
+
+func (c *Client) AddOrganizationOwner(ctx context.Context, id platform.ID, owner *platform.Owner) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		err := c.addOwner(ctx, tx, id, owner)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return err
+}
+
+func (c *Client) addOwner(ctx context.Context, tx *bolt.Tx, id platform.ID, owner *platform.Owner) error {
+	o, err := c.findOrganizationByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	found := false
+}
+
+func (c *Client) GetOrganizationOwners(ctx context.Context, id platform.ID) (*[]platform.Owner, error) {
+	var o *platform.Organization
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		org, err := c.findOrganizationByID(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		o = org
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &o.Owners, nil
+}
+
+func (c *Client) RemoveOrganizationOwner(ctx context.Context, orgID platform.ID, ownerID platform.ID) error {
+
+}
