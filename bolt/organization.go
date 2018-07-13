@@ -324,12 +324,24 @@ func (c *Client) AddOrganizationOwner(ctx context.Context, id platform.ID, owner
 }
 
 func (c *Client) addOwner(ctx context.Context, tx *bolt.Tx, id platform.ID, owner *platform.Owner) error {
-	o, err := c.findOrganizationByID(ctx, tx, id)
+	org, err := c.findOrganizationByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
-
 	found := false
+	for _, o := range org.Owners {
+		if o.ID.String() == owner.ID.String() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		org.Owners = append(org.Owners, *owner)
+		if err := c.putOrganization(ctx, tx, org); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *Client) GetOrganizationOwners(ctx context.Context, id platform.ID) (*[]platform.Owner, error) {
@@ -351,6 +363,34 @@ func (c *Client) GetOrganizationOwners(ctx context.Context, id platform.ID) (*[]
 	return &o.Owners, nil
 }
 
-func (c *Client) RemoveOrganizationOwner(ctx context.Context, orgID platform.ID, ownerID platform.ID) error {
+func (c *Client) RemoveOrganizationOwner(ctx context.Context, id platform.ID, ownerID platform.ID) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		err := c.removeOwner(ctx, tx, id, ownerID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 
+	return err
+}
+
+func (c *Client) removeOwner(ctx context.Context, tx *bolt.Tx, id platform.ID, ownerId platform.ID) error {
+	org, err := c.findOrganizationByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	for i, o := range org.Owners {
+		if o.ID.String() == ownerId.String() {
+			// remove owner from list
+			org.Owners = append(org.Owners[:i], org.Owners[i+1:]...)
+			if err := c.putOrganization(ctx, tx, org); err != nil {
+				return err
+			}
+			break
+		}
+	}
+
+	return nil
 }
