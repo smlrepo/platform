@@ -377,3 +377,88 @@ func (c *Client) deleteBucket(ctx context.Context, tx *bolt.Tx, id platform.ID) 
 	}
 	return tx.Bucket(bucketBucket).Delete(id)
 }
+
+func (c *Client) AddBucketOwner(ctx context.Context, id platform.ID, owner *platform.Owner) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		err := c.addbucketOwner(ctx, tx, id, owner)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return err
+}
+
+func (c *Client) addbucketOwner(ctx context.Context, tx *bolt.Tx, id platform.ID, owner *platform.Owner) error {
+	bucket, err := c.findBucketByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, o := range bucket.Owners {
+		if o.ID.String() == owner.ID.String() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		bucket.Owners = append(bucket.Owners, *owner)
+		if err := c.putBucket(ctx, tx, bucket); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) GetBucketOwners(ctx context.Context, id platform.ID) (*[]platform.Owner, error) {
+	var b *platform.Bucket
+
+	err := c.db.View(func(tx *bolt.Tx) error {
+		bucket, err := c.findBucketByID(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		b = bucket
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &b.Owners, nil
+}
+
+// RemoveBucketOwner removes an owner from a bucket owner list.
+func (c *Client) RemoveBucketOwner(ctx context.Context, id platform.ID, ownerID platform.ID) error {
+	err := c.db.Update(func(tx *bolt.Tx) error {
+		err := c.removebucketOwner(ctx, tx, id, ownerID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return err
+}
+
+func (c *Client) removebucketOwner(ctx context.Context, tx *bolt.Tx, id platform.ID, ownerId platform.ID) error {
+	b, err := c.findBucketByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	for i, o := range b.Owners {
+		if o.ID.String() == ownerId.String() {
+			// remove owner from list
+			b.Owners = append(b.Owners[:i], b.Owners[i+1:]...)
+			if err := c.putBucket(ctx, tx, b); err != nil {
+				return err
+			}
+			break
+		}
+	}
+
+	return nil
+}
