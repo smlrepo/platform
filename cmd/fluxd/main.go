@@ -242,6 +242,21 @@ func (s *StaticOrganizationService) DeleteOrganization(ctx context.Context, id p
 	panic("not implemented")
 }
 
+// AddOrganizationOwner adds an owner to an organization.
+func (s *StaticOrganizationService) AddOrganizationOwner(ctx context.Context, orgID platform.ID, owner *platform.Owner) error {
+	panic("not implemented")
+}
+
+// GetOrganizationOwners lists owners for an organization.
+func (s *StaticOrganizationService) GetOrganizationOwners(ctx context.Context, orgID platform.ID) (*[]platform.Owner, error) {
+	panic("not implemented")
+}
+
+// RemoveOrganizationOwner removes an owner from a bucket.
+func (s *StaticOrganizationService) RemoveOrganizationOwner(ctx context.Context, orgID platform.ID, ownerID platform.ID) error {
+	panic("not implemented")
+}
+
 // StaticBucketService connects to Influx via HTTP using tokens to manage buckets
 type StaticBucketService struct {
 	Name string
@@ -292,5 +307,20 @@ func (s *StaticBucketService) UpdateBucket(ctx context.Context, id platform.ID, 
 
 // DeleteBucket removes a bucket by ID.
 func (s *StaticBucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+	panic("not implemented")
+}
+
+// AddBucketOwner adds an owner to a bucket.
+func (s *StaticBucketService) AddBucketOwner(ctx context.Context, bucketID platform.ID, owner *platform.Owner) error {
+	panic("not implemented")
+}
+
+// GetBucketOwners lists all owners for a bucket.
+func (s *StaticBucketService) GetBucketOwners(ctx context.Context, bucketID platform.ID) (*[]platform.Owner, error) {
+	panic("not implemented")
+}
+
+// RemoveBucketOwner removes an owner from a bucket.
+func (s *StaticBucketService) RemoveBucketOwner(ctx context.Context, bucketID platform.ID, ownerID platform.ID) error {
 	panic("not implemented")
 }
