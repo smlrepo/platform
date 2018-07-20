@@ -20,6 +20,7 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/functions/storage/pb"
 	"github.com/influxdata/platform/snowflake"
+	platformtesting "github.com/influxdata/platform/testing"
 	pzap "github.com/influxdata/platform/zap"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
@@ -179,7 +180,7 @@ var (
 )
 
 func init() {
-	staticOrgID.DecodeFromString("baab")
+	staticOrgID = platformtesting.MustIDFromString("baabbaabbaabbaab")
 }
 
 // StaticOrganizationService connects to Influx via HTTP using tokens to manage organizations.
@@ -232,5 +233,5 @@ type bucketLookup struct{}
 func (l bucketLookup) Lookup(orgID platform.ID, name string) (platform.ID, bool) {
 	// Cheat and return the bucket name as the ID
 	// The deps.Reader will interpret this as the db/rp for the RPC call
-	return platform.ID(name), true
+	return platform.ID(name), true // fixme> cannot cast string to platform.ID
 }

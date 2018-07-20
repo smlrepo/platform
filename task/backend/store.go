@@ -253,10 +253,10 @@ func (StoreValidation) CreateArgs(org, user platform.ID, script string) (options
 		}
 	}
 
-	if len(org) == 0 {
+	if !org.Valid() {
 		missing = append(missing, "organization ID")
 	}
-	if len(user) == 0 {
+	if !user.Valid() {
 		missing = append(missing, "user ID")
 	}
 
@@ -283,7 +283,7 @@ func (StoreValidation) ModifyArgs(taskID platform.ID, script string) (options.Op
 		}
 	}
 
-	if len(taskID) == 0 {
+	if !taskID.Valid() {
 		missing = append(missing, "task ID")
 	}
 

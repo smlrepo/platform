@@ -63,7 +63,7 @@ type Cell struct {
 // DashboardFilter is a filter for dashboards.
 type DashboardFilter struct {
 	// TODO(desa): change to be a slice of IDs
-	ID *ID
+	ID ID
 }
 
 // DashboardUpdate is the patch structure for a dashboard.
@@ -93,7 +93,7 @@ type CellUpdate struct {
 	Y      *int32 `json:"y"`
 	W      *int32 `json:"w"`
 	H      *int32 `json:"h"`
-	ViewID *ID    `json:"viewID"`
+	ViewID ID     `json:"viewID"`
 }
 
 // Apply applies an update to a Cell.
@@ -114,8 +114,8 @@ func (u CellUpdate) Apply(c *Cell) error {
 		c.H = *u.H
 	}
 
-	if u.ViewID != nil {
-		c.ViewID = *u.ViewID
+	if u.ViewID.Valid() {
+		c.ViewID = u.ViewID
 	}
 
 	return nil
