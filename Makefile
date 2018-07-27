@@ -42,8 +42,6 @@ CMDS := \
 
 # List of utilities to build as part of the build process
 UTILS := \
-	bin/$(GOOS)/pigeon \
-	bin/$(GOOS)/cmpgen \
 	bin/$(GOOS)/goreleaser
 
 # Default target to build all commands.
@@ -54,7 +52,7 @@ all: dep generate Gopkg.lock $(UTILS) subdirs $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
-subdirs: $(SUBDIRS)
+subdirs: $(SUBDIRS) | vendor
 	@for d in $^; do $(MAKE) -C $$d all; done
 
 #
@@ -66,12 +64,6 @@ $(CMDS): $(SOURCES)
 #
 # Define targets for utilities
 #
-
-bin/$(GOOS)/pigeon: ./vendor/github.com/mna/pigeon/main.go
-	go build -i -o $@  ./vendor/github.com/mna/pigeon
-
-bin/$(GOOS)/cmpgen: ./query/ast/asttest/cmpgen/main.go
-	go build -i -o $@ ./query/ast/asttest/cmpgen
 
 bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
 	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser
@@ -97,12 +89,9 @@ endif
 # Define how source dependencies are managed
 #
 
-Gopkg.lock: Gopkg.toml
+Gopkg.lock vendor: Gopkg.toml
 	dep ensure -v
 	touch Gopkg.lock
-
-vendor/github.com/mna/pigeon/main.go: Gopkg.lock
-	dep ensure -v -vendor-only
 
 vendor/github.com/goreleaser/goreleaser/main.go: Gopkg.lock
 	dep ensure -v -vendor-only

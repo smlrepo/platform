@@ -1,6 +1,6 @@
 all: cmpopts.go
 
-cmpopts.go: ../ast.go gen.go ../../../bin/$(GOOS)/cmpgen
+cmpopts.go: ../ast.go gen.go
 	PATH=../../../bin/${GOOS}:${PATH} $(GO_GENERATE) -x ./...
 
 clean:

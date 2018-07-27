@@ -1,6 +1,6 @@
 all: flux.go
 
-flux.go: flux.peg parser.go parser_debug.go ../../bin/$(GOOS)/pigeon
+flux.go: flux.peg parser.go parser_debug.go | ../../vendor
 	PATH=../../bin/${GOOS}:${PATH} $(GO_GENERATE) -x ./...
 
 clean:

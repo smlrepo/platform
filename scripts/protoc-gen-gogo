@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+dirname=$(dirname $0)
+exec go run ${dirname}/../gorunpkg.go github.com/gogo/protobuf/protoc-gen-gogo "$@"

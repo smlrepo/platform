@@ -4,4 +4,4 @@ package pb
 
 // The tooling needed to correctly run go generate is managed by the Makefile.
 // Run `make` from the project root to ensure these generate commands execute correctly.
-//go:generate protoc -I ../../../vendor -I . --plugin ../../../bin/${GOOS}/protoc-gen-gogofaster --gogofaster_out=plugins=grpc:. ./tasks.proto
+//go:generate protoc -I ../../../vendor -I . --plugin ../../../scripts/protoc-gen-gogofaster --gogofaster_out=plugins=grpc:. ./tasks.proto

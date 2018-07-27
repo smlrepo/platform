@@ -30,7 +30,10 @@ required = [
     "github.com/mna/pigeon",
     # goreleaser is a utility to build and upload to S3
     "github.com/goreleaser/goreleaser",
-    "github.com/kevinburke/go-bindata"
+    "github.com/kevinburke/go-bindata",
+
+    "github.com/gogo/protobuf/protoc-gen-gogo",
+    "github.com/gogo/protobuf/protoc-gen-gogofaster",
 ]
 
 [[constraint]]
