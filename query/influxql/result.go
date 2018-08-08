@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/platform/pkg/iocounter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/iocounter"
 )
 
 // MultiResultEncoder encodes results as InfluxQL JSON format.

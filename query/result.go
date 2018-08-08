@@ -3,7 +3,7 @@ package query
 import (
 	"io"
 
-	"github.com/influxdata/platform/query/iocounter"
+	"github.com/influxdata/platform/pkg/iocounter"
 	"github.com/influxdata/platform/query/values"
 )
 

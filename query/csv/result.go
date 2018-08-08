@@ -1,3 +1,4 @@
+// Package csv defines the csv result format and implements the encoders and decoders.
 package csv
 
 import (
@@ -9,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/platform/pkg/iocounter"
 	"github.com/influxdata/platform/query"
 	"github.com/influxdata/platform/query/execute"
-	"github.com/influxdata/platform/query/iocounter"
 	"github.com/influxdata/platform/query/values"
 	"github.com/pkg/errors"
 )
