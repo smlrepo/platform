@@ -1518,7 +1518,7 @@ Included with the specification of the language and execution model, is a specif
 
 ### Request format
 
-To submit a query for execution, make an HTTP POST request to the `/v1/query` endpoint.
+To submit a query for execution, make an HTTP POST request to the `/v2/query` endpoint.
 
 The POST request may either submit parameters as the POST body or a subset of the parameters as URL query parameters.
 The following parameters are supported:
@@ -1555,13 +1555,13 @@ The HTTP header `Content-Type` of the response will specify the encoding of the 
 Make a request using a query string and URL query parameters:
 
 ```
-POST /v1/query?query=%20from%28db%3A%22mydatabse%22%29%20%7C%3E%20last%28%29 HTTP/1.1
+POST /v2/query?query=%20from%28db%3A%22mydatabse%22%29%20%7C%3E%20last%28%29 HTTP/1.1
 ```
 
 Make a request using a query string and the POST body as JSON:
 
 ```
-POST /v1/query
+POST /v2/query
 
 
 {
@@ -1572,7 +1572,7 @@ POST /v1/query
 Make a request using a query specification and the POST body as JSON:
 
 ```
-POST /v1/query
+POST /v2/query
 
 
 {
@@ -1612,7 +1612,7 @@ Dialect options are specified for the `text/csv` format.
 See below for details on specific dialect options.
 
 ```
-POST /v1/query
+POST /v2/query
 
 
 {

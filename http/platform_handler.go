@@ -92,27 +92,27 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 	}
 	r = r.WithContext(ctx)
 
-	if strings.HasPrefix(r.URL.Path, "/v1/buckets") {
+	if strings.HasPrefix(r.URL.Path, "/v2/buckets") {
 		h.BucketHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/users") {
+	if strings.HasPrefix(r.URL.Path, "/v2/users") {
 		h.UserHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/orgs") {
+	if strings.HasPrefix(r.URL.Path, "/v2/orgs") {
 		h.OrgHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/authorizations") {
+	if strings.HasPrefix(r.URL.Path, "/v2/authorizations") {
 		h.AuthorizationHandler.ServeHTTP(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/dashboards") {
+	if strings.HasPrefix(r.URL.Path, "/v2/dashboards") {
 		h.DashboardHandler.ServeHTTP(w, r)
 		return
 	}
@@ -122,7 +122,7 @@ func (h *PlatformHandler) ServeHTTP(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/v1/tasks") {
+	if strings.HasPrefix(r.URL.Path, "/v2/tasks") {
 		h.TaskHandler.ServeHTTP(w, r)
 	}
 

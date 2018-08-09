@@ -29,14 +29,14 @@ func NewAuthorizationHandler() *AuthorizationHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/authorizations", h.handlePostAuthorization)
-	h.HandlerFunc("GET", "/v1/authorizations", h.handleGetAuthorizations)
-	h.HandlerFunc("GET", "/v1/authorizations/:id", h.handleGetAuthorization)
-	h.HandlerFunc("DELETE", "/v1/authorizations/:id", h.handleDeleteAuthorization)
+	h.HandlerFunc("POST", "/v2/authorizations", h.handlePostAuthorization)
+	h.HandlerFunc("GET", "/v2/authorizations", h.handleGetAuthorizations)
+	h.HandlerFunc("GET", "/v2/authorizations/:id", h.handleGetAuthorization)
+	h.HandlerFunc("DELETE", "/v2/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
 
-// handlePostAuthorization is the HTTP handler for the POST /v1/authorizations route.
+// handlePostAuthorization is the HTTP handler for the POST /v2/authorizations route.
 func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -77,7 +77,7 @@ func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*post
 	}, nil
 }
 
-// handleGetAuthorizations is the HTTP handler for the GET /v1/authorizations route.
+// handleGetAuthorizations is the HTTP handler for the GET /v2/authorizations route.
 func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -135,7 +135,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 	return req, nil
 }
 
-// handleGetAuthorization is the HTTP handler for the GET /v1/authorizations/:id route.
+// handleGetAuthorization is the HTTP handler for the GET /v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -181,7 +181,7 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
-// handleDeleteAuthorization is the HTTP handler for the DELETE /v1/authorizations/:id route.
+// handleDeleteAuthorization is the HTTP handler for the DELETE /v2/authorizations/:id route.
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -317,7 +317,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 }
 
 const (
-	authorizationPath = "/v1/authorizations"
+	authorizationPath = "/v2/authorizations"
 )
 
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.

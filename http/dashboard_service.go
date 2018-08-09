@@ -26,19 +26,19 @@ func NewDashboardHandler() *DashboardHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/dashboards", h.handlePostDashboard)
-	h.HandlerFunc("GET", "/v1/dashboards", h.handleGetDashboards)
-	h.HandlerFunc("GET", "/v1/dashboards/:id", h.handleGetDashboard)
-	h.HandlerFunc("PATCH", "/v1/dashboards/:id", h.handlePatchDashboard)
-	h.HandlerFunc("DELETE", "/v1/dashboards/:id", h.handleDeleteDashboard)
+	h.HandlerFunc("POST", "/v2/dashboards", h.handlePostDashboard)
+	h.HandlerFunc("GET", "/v2/dashboards", h.handleGetDashboards)
+	h.HandlerFunc("GET", "/v2/dashboards/:id", h.handleGetDashboard)
+	h.HandlerFunc("PATCH", "/v2/dashboards/:id", h.handlePatchDashboard)
+	h.HandlerFunc("DELETE", "/v2/dashboards/:id", h.handleDeleteDashboard)
 
-	h.HandlerFunc("POST", "/v1/dashboards/:id/cells", h.handlePostDashboardCell)
-	h.HandlerFunc("PUT", "/v1/dashboards/:id/cells/:cell_id", h.handlePutDashboardCell)
-	h.HandlerFunc("DELETE", "/v1/dashboards/:id/cells/:cell_id", h.handleDeleteDashboardCell)
+	h.HandlerFunc("POST", "/v2/dashboards/:id/cells", h.handlePostDashboardCell)
+	h.HandlerFunc("PUT", "/v2/dashboards/:id/cells/:cell_id", h.handlePutDashboardCell)
+	h.HandlerFunc("DELETE", "/v2/dashboards/:id/cells/:cell_id", h.handleDeleteDashboardCell)
 	return h
 }
 
-// handlePostDashboard is the HTTP handler for the POST /v1/dashboards route.
+// handlePostDashboard is the HTTP handler for the POST /v2/dashboards route.
 func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -74,7 +74,7 @@ func decodePostDashboardRequest(ctx context.Context, r *http.Request) (*postDash
 	}, nil
 }
 
-// handleGetDashboard is the HTTP handler for the GET /v1/dashboards/:id route.
+// handleGetDashboard is the HTTP handler for the GET /v2/dashboards/:id route.
 func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -118,7 +118,7 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 	return req, nil
 }
 
-// handleDeleteDashboard is the HTTP handler for the DELETE /v1/dashboards/:id route.
+// handleDeleteDashboard is the HTTP handler for the DELETE /v2/dashboards/:id route.
 func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -158,7 +158,7 @@ func decodeDeleteDashboardRequest(ctx context.Context, r *http.Request) (*delete
 	return req, nil
 }
 
-// handleGetDashboards is the HTTP handler for the GET /v1/dashboards route.
+// handleGetDashboards is the HTTP handler for the GET /v2/dashboards route.
 func (h *DashboardHandler) handleGetDashboards(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -209,7 +209,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	return req, nil
 }
 
-// handlePatchDashboard is the HTTP handler for the PATH /v1/dashboards route.
+// handlePatchDashboard is the HTTP handler for the PATH /v2/dashboards route.
 func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -259,7 +259,7 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	}, nil
 }
 
-// handlePostDashboardCell is the HTTP handler for the POST /v1/dashboards/:id/cells route.
+// handlePostDashboardCell is the HTTP handler for the POST /v2/dashboards/:id/cells route.
 func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -307,7 +307,7 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 	}, nil
 }
 
-// handlePutDashboardCell is the HTTP handler for the PUT /v1/dashboards/:id/cells/:cell_id route.
+// handlePutDashboardCell is the HTTP handler for the PUT /v2/dashboards/:id/cells/:cell_id route.
 func (h *DashboardHandler) handlePutDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -366,7 +366,7 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 	return req, nil
 }
 
-// handleDeleteDashboardCell is the HTTP handler for the DELETE /v1/dashboards/:id/cells/:cell_id route.
+// handleDeleteDashboardCell is the HTTP handler for the DELETE /v2/dashboards/:id/cells/:cell_id route.
 func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -413,7 +413,7 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 }
 
 const (
-	dashboardPath = "/v1/dashboards"
+	dashboardPath = "/v2/dashboards"
 )
 
 // DashboardService connects to Influx via HTTP using tokens to manage dashboards

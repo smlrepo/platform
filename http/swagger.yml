@@ -3,7 +3,7 @@ info:
   title: Influx API Service
   version: 0.1.0
 servers:
-  - url: /v1
+  - url: /v2
 paths:
   /:
     get:

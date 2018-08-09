@@ -184,7 +184,7 @@ func decodeGetSourceBucketsRequest(ctx context.Context, r *http.Request) (*getSo
 	}, nil
 }
 
-// handlePostSource is the HTTP handler for the POST /v1/sources route.
+// handlePostSource is the HTTP handler for the POST /v2/sources route.
 func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -220,7 +220,7 @@ func decodePostSourceRequest(ctx context.Context, r *http.Request) (*postSourceR
 	}, nil
 }
 
-// handleGetSource is the HTTP handler for the GET /v1/sources/:id route.
+// handleGetSource is the HTTP handler for the GET /v2/sources/:id route.
 func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -266,7 +266,7 @@ func decodeGetSourceRequest(ctx context.Context, r *http.Request) (*getSourceReq
 	return req, nil
 }
 
-// handleDeleteSource is the HTTP handler for the DELETE /v1/sources/:id route.
+// handleDeleteSource is the HTTP handler for the DELETE /v2/sources/:id route.
 func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -306,7 +306,7 @@ func decodeDeleteSourceRequest(ctx context.Context, r *http.Request) (*deleteSou
 	return req, nil
 }
 
-// handleGetSources is the HTTP handler for the GET /v1/sources route.
+// handleGetSources is the HTTP handler for the GET /v2/sources route.
 func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -339,7 +339,7 @@ func decodeGetSourcesRequest(ctx context.Context, r *http.Request) (*getSourcesR
 	return req, nil
 }
 
-// handlePatchSource is the HTTP handler for the PATH /v1/sources route.
+// handlePatchSource is the HTTP handler for the PATH /v2/sources route.
 func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -390,7 +390,7 @@ func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourc
 }
 
 const (
-	sourcePath = "/v1/sources"
+	sourcePath = "/v2/sources"
 )
 
 // SourceService connects to Influx via HTTP using tokens to manage sources

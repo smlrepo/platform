@@ -87,7 +87,7 @@ func newURL(addr, path string) (*url.URL, error) {
 }
 
 func (s *SourceQuerier) newFluxHTTPRequest(ctx context.Context, q *platform.SourceQuery) (*nethttp.Request, error) {
-	u, err := newURL(s.Source.FluxURL, "/v1/query")
+	u, err := newURL(s.Source.FluxURL, "/v2/query")
 	if err != nil {
 		return nil, err
 	}

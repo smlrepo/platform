@@ -26,15 +26,15 @@ func NewBucketHandler() *BucketHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/buckets", h.handlePostBucket)
-	h.HandlerFunc("GET", "/v1/buckets", h.handleGetBuckets)
-	h.HandlerFunc("GET", "/v1/buckets/:id", h.handleGetBucket)
-	h.HandlerFunc("PATCH", "/v1/buckets/:id", h.handlePatchBucket)
-	h.HandlerFunc("DELETE", "/v1/buckets/:id", h.handleDeleteBucket)
+	h.HandlerFunc("POST", "/v2/buckets", h.handlePostBucket)
+	h.HandlerFunc("GET", "/v2/buckets", h.handleGetBuckets)
+	h.HandlerFunc("GET", "/v2/buckets/:id", h.handleGetBucket)
+	h.HandlerFunc("PATCH", "/v2/buckets/:id", h.handlePatchBucket)
+	h.HandlerFunc("DELETE", "/v2/buckets/:id", h.handleDeleteBucket)
 	return h
 }
 
-// handlePostBucket is the HTTP handler for the POST /v1/buckets route.
+// handlePostBucket is the HTTP handler for the POST /v2/buckets route.
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -70,7 +70,7 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 	}, nil
 }
 
-// handleGetBucket is the HTTP handler for the GET /v1/buckets/:id route.
+// handleGetBucket is the HTTP handler for the GET /v2/buckets/:id route.
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -114,7 +114,7 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	return req, nil
 }
 
-// handleDeleteBucket is the HTTP handler for the DELETE /v1/buckets/:id route.
+// handleDeleteBucket is the HTTP handler for the DELETE /v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -154,7 +154,7 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 	return req, nil
 }
 
-// handleGetBuckets is the HTTP handler for the GET /v1/buckets route.
+// handleGetBuckets is the HTTP handler for the GET /v2/buckets route.
 func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -209,7 +209,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	return req, nil
 }
 
-// handlePatchBucket is the HTTP handler for the PATH /v1/buckets route.
+// handlePatchBucket is the HTTP handler for the PATH /v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -260,7 +260,7 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 }
 
 const (
-	bucketPath = "/v1/buckets"
+	bucketPath = "/v2/buckets"
 )
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets

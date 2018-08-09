@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	queryPath = "/v1/query"
+	queryPath = "/v2/query"
 
 	statsTrailer = "Influx-Query-Statistics"
 )
@@ -50,7 +50,7 @@ func (h *QueryHandler) handlePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePostQuery is the HTTP handler for the POST /v1/query route.
+// handlePostQuery is the HTTP handler for the POST /v2/query route.
 func (h *QueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
