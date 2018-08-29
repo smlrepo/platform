@@ -1,0 +1,3 @@
+#!/bin/bash
+set -e
+docker run --rm -v $PWD:/workdir -w /workdir quay.io/influxdb/pigeon:2ad051b "$@"

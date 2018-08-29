@@ -1,3 +1,3 @@
 package promql
 
-//go:generate pigeon -o promql.go promql.peg
+//go:generate ../../build-scripts/pigeon -o promql.go promql.peg

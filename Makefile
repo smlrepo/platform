@@ -40,7 +40,6 @@ CMDS := \
 
 # List of utilities to build as part of the build process
 UTILS := \
-	bin/$(GOOS)/pigeon \
 	bin/$(GOOS)/cmpgen \
 	bin/$(GOOS)/protoc-gen-gogofaster \
 	bin/$(GOOS)/goreleaser \
@@ -66,9 +65,6 @@ $(CMDS): $(SOURCES)
 #
 # Define targets for utilities
 #
-
-bin/$(GOOS)/pigeon: ./vendor/github.com/mna/pigeon/main.go
-	go build -i -o $@  ./vendor/github.com/mna/pigeon
 
 bin/$(GOOS)/cmpgen: ./query/ast/asttest/cmpgen/main.go
 	go build -i -o $@ ./query/ast/asttest/cmpgen
@@ -98,7 +94,6 @@ endif
 # Define how source dependencies are managed
 #
 
-vendor/github.com/mna/pigeon/main.go: vendor
 vendor/github.com/goreleaser/goreleaser/main.go: vendor
 vendor/github.com/kevinburke/go-bindata/go-bindata/main.go: vendor
 

@@ -726,18 +726,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:34fe82b3e3fd1a84348a21788e3a547112452bafd1cd061651875ea69b755a29"
-  name = "github.com/mna/pigeon"
-  packages = [
-    ".",
-    "ast",
-    "builder",
-  ]
-  pruneopts = "UT"
-  revision = "2ad051b8b508f69e7dcf8febdea2856ec2db73ed"
-
-[[projects]]
-  branch = "master"
   digest = "1:c22fdadfe2de0e1df75987cac34f1c721157dc24f180c76b4ef66a3c9637a799"
   name = "github.com/mschoch/smat"
   packages = ["."]
@@ -1104,18 +1092,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4d63ca26a477869856c95a8a9760a8405686065538bd375d1f1481a8f5528094"
-  name = "golang.org/x/tools"
-  packages = [
-    "go/ast/astutil",
-    "imports",
-    "internal/fastwalk",
-  ]
-  pruneopts = "UT"
-  revision = "28aef64757f4d432485ab970b094e1af8b301e84"
-
-[[projects]]
-  branch = "master"
   digest = "1:b6e61b553fead421d0090a416a44afc2073ba443d9c13b8de0374b4ac4dc80c1"
   name = "google.golang.org/api"
   packages = [
@@ -1233,7 +1209,6 @@
     "github.com/jessevdk/go-flags",
     "github.com/julienschmidt/httprouter",
     "github.com/kevinburke/go-bindata",
-    "github.com/mna/pigeon",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/ext",
     "github.com/opentracing/opentracing-go/log",
