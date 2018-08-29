@@ -17,6 +17,10 @@ idpdb.bolt
 /transpilerd
 /bin
 
+# Build scripts for go generate.
+!/bin/pigeon
+
+# chronograf
 chronograf/ui/node_modules
 chronograf/ui/yarn-error.log
 chronograf/ui/build
