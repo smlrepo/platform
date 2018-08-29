@@ -1,4 +1,4 @@
-FROM golang:1.10.3 as builder
+FROM golang:1.11.0 as builder
 ENV PIGEON_REVISION 2ad051b8b508f69e7dcf8febdea2856ec2db73ed
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     apt-get install -y --no-install-recommends unzip
