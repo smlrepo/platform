@@ -405,12 +405,25 @@ The regular expression type name is `regexp`.
 An _array type_ represents a sequence of values of any other type.
 All values in the array must be of the same type.
 The length of an array is the number of elements in the array.
+The values of an array may be retrieved using member expressions.
 
 #### Object types
 
 An _object type_ represents a set of unordered key and value pairs.
 The key must always be a string.
 The value may be any other type, and need not be the same as other values within the object.
+The values of an object may be retrieved using member expressions.
+
+#### Map types
+
+A _map type_ represents a set of unordered key and value pairs.
+Just like an _object type_ values may be of arbitrary type.
+Keys can be any valid expression that evaluates to a string.
+A key that does not resolve to a string will cause a run-time error.
+The values of a map **cannot** be retrieved using member expressions.
+
+**Note:** A variable of type _map_ is immutable.
+Its elements cannot be modified nor can they be retrieved after it is initialized.
 
 #### Function types
 
@@ -538,6 +551,46 @@ A function may be given a name using a variable assignment.
 Function literals are _closures_: they may refer to variables defined is a surrounding block.
 Those variables are shared between the function literal and the surrounding block.
 
+#### Composite Literals
+
+Composite literals construct values for arrays, objects, and maps.
+They create a new value each time they are evaluated.
+
+    CompositeLiteral = ArrayLiteral | ObjectLiteral | MapLiteral .
+
+    ArrayLiteral    = "[" ExpressionList "]" .
+    ExpressionList  = Expression { "," Expression } .
+
+    ObjectLiteral   = "{" ( KeyedList | ImpliedKeyList ) [ "," ] "}" .
+    KeyedList       = KeyedElement { "," KeyedElement } .
+    ImpliedKeyList  = Identifier { "," Identifier } .
+    KeyedElement    = Identifier ":" Expression .
+
+    MapLiteral      = "{" MapList [ "," ] "}" .
+    MapList         = MapElement { "," MapElement } .
+    MapElement      = "[" Expression "]" ":" Expression .
+
+For array literals:
+
+* Each element has an associated integer index marking its position in the array
+* An element's index is implicitly assigned as one plus the previous element's index
+* The first element in the array is assigned an index of 0
+
+For object literals:
+
+* Keys must be valid identifiers
+* No two elements can have the same key
+* Specifying keys are optional
+* Every element must specify a key or no element can
+* If an element does not have a key, that element must be an identifier, where the identifier's name will be used to key the element
+
+For map literals:
+
+* Keys must always be specified
+* Keys must evaluate to string values
+* The keys of any two elements must not evaluate to the same string value
+* Keys that evaluate to the same value will cause a run-time error
+
 #### Call expressions
 
 A call expressions invokes a function with the provided arguments.
@@ -567,6 +620,38 @@ Examples:
     bar = (x=<-) => // function body elided
     baz = (y=<-) => // function body elided
     foo() |> bar() |> baz() // equivalent to baz(x:bar(y:foo()))
+
+#### Member Expressions
+
+A member expression retrieves an element of an array or object using that element's key or index.
+
+    MemberExpression    = PropertyExpression | KeyExpression .
+    PropertyExpression  = identifier "." identifier .
+    KeyExpression       = identifier "[" ( StringLiteral | IntegerLiteral ) "]" .
+
+For objects:
+
+* Elements can be retrieved using dot or square bracket notation
+* When using dot notation the identifier representing the key is placed on the right-hand side
+* When using bracket notation the name of the key, used as a string literal, is placed on the right-hand side
+* Retrieving an element for which there is no key causes an error
+
+Example:
+
+    obj = {a: 1, b: "str"}  // declare a variable of type object
+    a_value = obj.a         // retrieve the element associated with key a
+    b_value = obj["b"]      // retrieve the element associated with key b
+
+For arrays:
+
+* Elements can only be retrieved using the element's index inside of square brackets
+* Using a negative index or an index greater than or equal to the length of the array causes an error
+
+Example:
+
+    arr = [3, 4, 5] // declare a variable of type array
+    foo = arr[0]    // retrieve the first element
+    bar = arr[2]    // retrieve the last element
 
 ### Statements
 
