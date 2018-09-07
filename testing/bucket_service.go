@@ -74,6 +74,7 @@ func CreateBucket(
 				bucket: &platform.Bucket{
 					Name:           "name1",
 					OrganizationID: idFromString(t, orgOneID),
+					Type:           platform.BucketTypeUser,
 				},
 			},
 			wants: wants{
@@ -83,6 +84,7 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						OrganizationID: idFromString(t, orgOneID),
 						Organization:   "theorg",
+						Type:           platform.BucketTypeUser,
 					},
 				},
 			},
@@ -100,6 +102,60 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						Name:           "bucket1",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
+					},
+				},
+				Organizations: []*platform.Organization{
+					{
+						Name: "theorg",
+						ID:   idFromString(t, orgOneID),
+					},
+					{
+						Name: "otherorg",
+						ID:   idFromString(t, orgTwoID),
+					},
+				},
+			},
+			args: args{
+				bucket: &platform.Bucket{
+					Name:           "bucket2",
+					OrganizationID: idFromString(t, orgTwoID),
+					Type:           platform.BucketTypeUser,
+				},
+			},
+			wants: wants{
+				buckets: []*platform.Bucket{
+					{
+						ID:             idFromString(t, bucketOneID),
+						Name:           "bucket1",
+						Organization:   "theorg",
+						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
+					},
+					{
+						ID:             idFromString(t, bucketTwoID),
+						Name:           "bucket2",
+						Organization:   "otherorg",
+						OrganizationID: idFromString(t, orgTwoID),
+						Type:           platform.BucketTypeUser,
+					},
+				},
+			},
+		},
+		{
+			name: "create bucket defaults to user type",
+			fields: BucketFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return idFromString(t, bucketTwoID)
+					},
+				},
+				Buckets: []*platform.Bucket{
+					{
+						ID:             idFromString(t, bucketOneID),
+						Name:           "bucket1",
+						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				Organizations: []*platform.Organization{
@@ -126,12 +182,14 @@ func CreateBucket(
 						Name:           "bucket1",
 						Organization:   "theorg",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 					{
 						ID:             idFromString(t, bucketTwoID),
 						Name:           "bucket2",
 						Organization:   "otherorg",
 						OrganizationID: idFromString(t, orgTwoID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 			},
@@ -149,6 +207,7 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						Name:           "bucket1",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				Organizations: []*platform.Organization{
@@ -176,12 +235,14 @@ func CreateBucket(
 						Name:           "bucket1",
 						Organization:   "theorg",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 					{
 						ID:             idFromString(t, fmt.Sprintf("%s%d", orgTwoID, platform.BucketTypeLogs)),
 						Name:           "bucket2",
 						Organization:   "otherorg",
 						OrganizationID: idFromString(t, orgTwoID),
+						Type:           platform.BucketTypeLogs,
 					},
 				},
 			},
@@ -199,6 +260,7 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						Name:           "bucket1",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				Organizations: []*platform.Organization{
@@ -216,6 +278,7 @@ func CreateBucket(
 				bucket: &platform.Bucket{
 					Name:         "bucket2",
 					Organization: "otherorg",
+					Type:         platform.BucketTypeUser,
 				},
 			},
 			wants: wants{
@@ -225,12 +288,14 @@ func CreateBucket(
 						Name:           "bucket1",
 						Organization:   "theorg",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 					{
 						ID:             idFromString(t, bucketTwoID),
 						Name:           "bucket2",
 						Organization:   "otherorg",
 						OrganizationID: idFromString(t, orgTwoID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 			},
@@ -248,6 +313,7 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						Name:           "bucket1",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				Organizations: []*platform.Organization{
@@ -274,6 +340,7 @@ func CreateBucket(
 						Name:           "bucket1",
 						Organization:   "theorg",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				err: fmt.Errorf("bucket with name bucket1 already exists"),
@@ -302,6 +369,7 @@ func CreateBucket(
 						ID:             idFromString(t, bucketOneID),
 						Name:           "bucket1",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 			},
@@ -309,6 +377,7 @@ func CreateBucket(
 				bucket: &platform.Bucket{
 					Name:           "bucket1",
 					OrganizationID: idFromString(t, orgTwoID),
+					Type:           platform.BucketTypeUser,
 				},
 			},
 			wants: wants{
@@ -318,12 +387,14 @@ func CreateBucket(
 						Name:           "bucket1",
 						Organization:   "theorg",
 						OrganizationID: idFromString(t, orgOneID),
+						Type:           platform.BucketTypeUser,
 					},
 					{
 						ID:             idFromString(t, bucketTwoID),
 						Name:           "bucket1",
 						Organization:   "otherorg",
 						OrganizationID: idFromString(t, orgTwoID),
+						Type:           platform.BucketTypeUser,
 					},
 				},
 			},
@@ -385,11 +456,13 @@ func FindBucketByID(
 						ID:             idFromString(t, bucketOneID),
 						OrganizationID: idFromString(t, orgOneID),
 						Name:           "bucket1",
+						Type:           platform.BucketTypeUser,
 					},
 					{
 						ID:             idFromString(t, bucketTwoID),
 						OrganizationID: idFromString(t, orgOneID),
 						Name:           "bucket2",
+						Type:           platform.BucketTypeUser,
 					},
 				},
 				Organizations: []*platform.Organization{
@@ -408,6 +481,7 @@ func FindBucketByID(
 					OrganizationID: idFromString(t, orgOneID),
 					Organization:   "theorg",
 					Name:           "bucket2",
+					Type:           platform.BucketTypeUser,
 				},
 			},
 		},
