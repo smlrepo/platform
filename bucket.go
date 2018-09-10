@@ -20,7 +20,7 @@ type Bucket struct {
 	Name                string        `json:"name"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
-	Type                BucketType    `json:"-"` // Only user buckets will be visible over HTTP
+	Type                BucketType    `json:"type"`
 }
 
 // BucketService represents a service for managing bucket data.
