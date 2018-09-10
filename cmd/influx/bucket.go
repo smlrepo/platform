@@ -89,6 +89,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"Type",
 		"Retention",
 		"Organization",
 		"OrganizationID",
@@ -96,6 +97,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
+		"Type":           b.Type,
 		"Retention":      b.RetentionPeriod,
 		"Organization":   b.Organization,
 		"OrganizationID": b.OrganizationID.String(),
@@ -177,6 +179,7 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"Type",
 		"Retention",
 		"Organization",
 		"OrganizationID",
@@ -185,6 +188,7 @@ func bucketFindF(cmd *cobra.Command, args []string) {
 		w.Write(map[string]interface{}{
 			"ID":             b.ID.String(),
 			"Name":           b.Name,
+			"Type":           b.Type,
 			"Retention":      b.RetentionPeriod,
 			"Organization":   b.Organization,
 			"OrganizationID": b.OrganizationID.String(),
@@ -247,6 +251,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"Type",
 		"Retention",
 		"Organization",
 		"OrganizationID",
@@ -254,6 +259,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
+		"Type":           b.Type,
 		"Retention":      b.RetentionPeriod,
 		"Organization":   b.Organization,
 		"OrganizationID": b.OrganizationID.String(),
@@ -297,6 +303,7 @@ func bucketDeleteF(cmd *cobra.Command, args []string) {
 	w.WriteHeaders(
 		"ID",
 		"Name",
+		"Type",
 		"Retention",
 		"Organization",
 		"OrganizationID",
@@ -305,6 +312,7 @@ func bucketDeleteF(cmd *cobra.Command, args []string) {
 	w.Write(map[string]interface{}{
 		"ID":             b.ID.String(),
 		"Name":           b.Name,
+		"Type":           b.Type,
 		"Retention":      b.RetentionPeriod,
 		"Organization":   b.Organization,
 		"OrganizationID": b.OrganizationID.String(),
