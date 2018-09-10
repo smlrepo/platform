@@ -8,8 +8,7 @@ import (
 type BucketType int
 
 const (
-	BucketTypeUser = BucketType(iota + 10)
-	BucketTypeLogs
+	BucketTypeLogs = BucketType(iota + 10)
 )
 
 // Bucket is a bucket. 🎉
@@ -20,7 +19,6 @@ type Bucket struct {
 	Name                string        `json:"name"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
-	Type                BucketType    `json:"type"`
 }
 
 // BucketService represents a service for managing bucket data.
@@ -59,7 +57,6 @@ type BucketFilter struct {
 	Name           *string
 	OrganizationID *ID
 	Organization   *string
-	Type           BucketType
 }
 
 // FindOptions represents options passed to all find methods with multiple results.
