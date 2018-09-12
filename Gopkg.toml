@@ -96,5 +96,5 @@ required = [
   branch = "v2"
 
 [[constraint]]
-  branch = "master"
+  branch = "feature/uint64-id"
   name = "github.com/influxdata/flux"
