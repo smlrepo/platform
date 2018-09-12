@@ -129,11 +129,26 @@ func platformF(cmd *cobra.Command, args []string) {
 	c := bolt.NewClient()
 	c.Path = boltPath
 
+	var onboardingSrv platform.OnboardingService = c
+
+	isOnboarding := onboardingSrv.IsOnboarding()
+
 	if err := c.Open(context.TODO()); err != nil {
 		logger.Error("failed opening bolt", zap.Error(err))
 		os.Exit(1)
 	}
 	defer c.Close()
+
+	if isOnboarding {
+		defaults, err := onboardingSrv.Generate(context.TODO())
+		if err != nil {
+			// remove boltPath for future default creation.
+			os.Remove(c.Path)
+			logger.Error("failed to create onboarding defaults", zap.Error(err))
+			os.Exit(1)
+		}
+		outputToken(defaults.Auth.Token, authorizationPath)
+	}
 
 	var authSvc platform.AuthorizationService
 	{
@@ -337,4 +352,14 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func outputToken(tok, outputFile string) error {
+	f, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(tok)
+	return err
 }
