@@ -62,12 +62,12 @@ func CreateDashboard(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 					},
 				},
@@ -80,11 +80,11 @@ func CreateDashboard(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "dashboard2",
 					},
 				},
@@ -145,29 +145,29 @@ func AddDashboardCell(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
+				dashboardID: MustIDFromString(dashOneID),
 				cell:        &platform.Cell{},
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 						},
 					},
@@ -228,21 +228,21 @@ func FindDashboardByID(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "dashboard2",
 					},
 				},
 			},
 			args: args{
-				id: idFromString(t, dashTwoID),
+				id: MustIDFromString(dashTwoID),
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:   idFromString(t, dashTwoID),
+					ID:   MustIDFromString(dashTwoID),
 					Name: "dashboard2",
 				},
 			},
@@ -298,11 +298,11 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "xyz",
 					},
 				},
@@ -311,11 +311,11 @@ func FindDashboards(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "xyz",
 					},
 				},
@@ -326,22 +326,22 @@ func FindDashboards(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "abc",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "xyz",
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, dashTwoID),
+				ID: MustIDFromString(dashTwoID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "xyz",
 					},
 				},
@@ -356,8 +356,8 @@ func FindDashboards(
 			ctx := context.TODO()
 
 			filter := platform.DashboardFilter{}
-			if tt.args.ID != nil {
-				filter.ID = &tt.args.ID
+			if tt.args.ID.Valid() {
+				filter.ID = tt.args.ID
 			}
 
 			dashboards, _, err := s.FindDashboards(ctx, filter)
@@ -403,22 +403,22 @@ func DeleteDashboard(
 				Dashboards: []*platform.Dashboard{
 					{
 						Name: "A",
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 					},
 					{
 						Name: "B",
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, dashOneID),
+				ID: MustIDFromString(dashOneID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
 						Name: "B",
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 					},
 				},
 			},
@@ -429,27 +429,27 @@ func DeleteDashboard(
 				Dashboards: []*platform.Dashboard{
 					{
 						Name: "A",
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 					},
 					{
 						Name: "B",
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 					},
 				},
 			},
 			args: args{
-				ID: idFromString(t, dashThreeID),
+				ID: MustIDFromString(dashThreeID),
 			},
 			wants: wants{
 				err: fmt.Errorf("dashboard not found"),
 				dashboards: []*platform.Dashboard{
 					{
 						Name: "A",
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 					},
 					{
 						Name: "B",
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 					},
 				},
 			},
@@ -510,22 +510,22 @@ func UpdateDashboard(
 			fields: DashboardFields{
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 					},
 					{
-						ID:   idFromString(t, dashTwoID),
+						ID:   MustIDFromString(dashTwoID),
 						Name: "dashboard2",
 					},
 				},
 			},
 			args: args{
-				id:   idFromString(t, dashOneID),
+				id:   MustIDFromString(dashOneID),
 				name: "changed",
 			},
 			wants: wants{
 				dashboard: &platform.Dashboard{
-					ID:   idFromString(t, dashOneID),
+					ID:   MustIDFromString(dashOneID),
 					Name: "changed",
 				},
 			},
@@ -586,20 +586,20 @@ func RemoveDashboardCell(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 							{
-								ID: idFromString(t, dashOneID),
+								ID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -607,23 +607,23 @@ func RemoveDashboardCell(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashTwoID),
+							ID: MustIDFromString(dashTwoID),
 						},
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
-				cellID:      idFromString(t, dashTwoID),
+				dashboardID: MustIDFromString(dashOneID),
+				cellID:      MustIDFromString(dashTwoID),
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: idFromString(t, dashOneID),
+								ID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -689,41 +689,41 @@ func UpdateDashboardCell(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: idFromString(t, dashTwoID),
+								ID: MustIDFromString(dashTwoID),
 							},
 							{
-								ID: idFromString(t, dashOneID),
+								ID: MustIDFromString(dashOneID),
 							},
 						},
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
-				cellID:      idFromString(t, dashTwoID),
+				dashboardID: MustIDFromString(dashOneID),
+				cellID:      MustIDFromString(dashTwoID),
 				x:           10,
 			},
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID: idFromString(t, dashTwoID),
+								ID: MustIDFromString(dashTwoID),
 								X:  10,
 							},
 							{
-								ID: idFromString(t, dashOneID),
+								ID: MustIDFromString(dashOneID),
 							},
 						},
 					},
@@ -798,49 +798,49 @@ func ReplaceDashboardCells(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashTwoID),
+							ID: MustIDFromString(dashTwoID),
 						},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashOneID),
+							ID: MustIDFromString(dashOneID),
 						},
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 							{
-								ID:     idFromString(t, dashOneID),
-								ViewID: idFromString(t, dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 							},
 						},
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
+				dashboardID: MustIDFromString(dashOneID),
 				cells: []*platform.Cell{
 					{
-						ID:     idFromString(t, dashTwoID),
-						ViewID: idFromString(t, dashTwoID),
+						ID:     MustIDFromString(dashTwoID),
+						ViewID: MustIDFromString(dashTwoID),
 						X:      10,
 					},
 					{
-						ID:     idFromString(t, dashOneID),
-						ViewID: idFromString(t, dashOneID),
+						ID:     MustIDFromString(dashOneID),
+						ViewID: MustIDFromString(dashOneID),
 						Y:      11,
 					},
 				},
@@ -848,17 +848,17 @@ func ReplaceDashboardCells(
 			wants: wants{
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 								X:      10,
 							},
 							{
-								ID:     idFromString(t, dashOneID),
-								ViewID: idFromString(t, dashOneID),
+								ID:     MustIDFromString(dashOneID),
+								ViewID: MustIDFromString(dashOneID),
 								Y:      11,
 							},
 						},
@@ -871,40 +871,40 @@ func ReplaceDashboardCells(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashTwoID),
+							ID: MustIDFromString(dashTwoID),
 						},
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 						},
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
+				dashboardID: MustIDFromString(dashOneID),
 				cells: []*platform.Cell{
 					{
-						ID:     idFromString(t, dashTwoID),
-						ViewID: idFromString(t, dashTwoID),
+						ID:     MustIDFromString(dashTwoID),
+						ViewID: MustIDFromString(dashTwoID),
 						X:      10,
 					},
 					{
-						ID:     idFromString(t, dashOneID),
-						ViewID: idFromString(t, dashOneID),
+						ID:     MustIDFromString(dashOneID),
+						ViewID: MustIDFromString(dashOneID),
 						Y:      11,
 					},
 				},
@@ -913,12 +913,12 @@ func ReplaceDashboardCells(
 				err: fmt.Errorf("cannot replace cells that were not already present"),
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 						},
 					},
@@ -930,40 +930,40 @@ func ReplaceDashboardCells(
 			fields: DashboardFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, dashTwoID)
+						return MustIDFromString(dashTwoID)
 					},
 				},
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashTwoID),
+							ID: MustIDFromString(dashTwoID),
 						},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							ID: idFromString(t, dashOneID),
+							ID: MustIDFromString(dashOneID),
 						},
 					},
 				},
 				Dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 						},
 					},
 				},
 			},
 			args: args{
-				dashboardID: idFromString(t, dashOneID),
+				dashboardID: MustIDFromString(dashOneID),
 				cells: []*platform.Cell{
 					{
-						ID:     idFromString(t, dashTwoID),
-						ViewID: idFromString(t, dashOneID),
+						ID:     MustIDFromString(dashTwoID),
+						ViewID: MustIDFromString(dashOneID),
 						X:      10,
 					},
 				},
@@ -972,12 +972,12 @@ func ReplaceDashboardCells(
 				err: fmt.Errorf("cannot update view id in replace"),
 				dashboards: []*platform.Dashboard{
 					{
-						ID:   idFromString(t, dashOneID),
+						ID:   MustIDFromString(dashOneID),
 						Name: "dashboard1",
 						Cells: []*platform.Cell{
 							{
-								ID:     idFromString(t, dashTwoID),
-								ViewID: idFromString(t, dashTwoID),
+								ID:     MustIDFromString(dashTwoID),
+								ViewID: MustIDFromString(dashTwoID),
 							},
 						},
 					},

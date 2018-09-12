@@ -141,47 +141,47 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
 					IDFn: func() platform.ID {
-						return idFromString(t, bucketTwoID)
+						return MustIDFromString(bucketTwoID)
 					},
 				},
 				Buckets: []*platform.Bucket{
 					{
-						ID:             idFromString(t, bucketOneID),
+						ID:             MustIDFromString(bucketOneID),
 						Name:           "bucket1",
-						OrganizationID: idFromString(t, orgOneID),
+						OrganizationID: MustIDFromString(orgOneID),
 					},
 				},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
-						ID:   idFromString(t, orgOneID),
+						ID:   MustIDFromString(orgOneID),
 					},
 					{
 						Name: "otherorg",
-						ID:   idFromString(t, orgTwoID),
+						ID:   MustIDFromString(orgTwoID),
 					},
 				},
 			},
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "bucket2",
-					OrganizationID: idFromString(t, orgTwoID),
+					OrganizationID: MustIDFromString(orgTwoID),
 					Type:           platform.BucketTypeLogs,
 				},
 			},
 			wants: wants{
 				buckets: []*platform.Bucket{
 					{
-						ID:             idFromString(t, bucketOneID),
+						ID:             MustIDFromString(bucketOneID),
 						Name:           "bucket1",
 						Organization:   "theorg",
-						OrganizationID: idFromString(t, orgOneID),
+						OrganizationID: MustIDFromString(orgOneID),
 					},
 					{
-						ID:             idFromString(t, fmt.Sprintf("%s%d", orgTwoID, platform.BucketTypeLogs)),
+						ID:             MustIDFromString(fmt.Sprintf("%s%d", orgTwoID, platform.BucketTypeLogs)),
 						Name:           "bucket2",
 						Organization:   "otherorg",
-						OrganizationID: idFromString(t, orgTwoID),
+						OrganizationID: MustIDFromString(orgTwoID),
 					},
 				},
 			},
