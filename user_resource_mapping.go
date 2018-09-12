@@ -27,10 +27,10 @@ type UserResourceMapping struct {
 
 // Validate reports any validation errors for the mapping.
 func (m UserResourceMapping) Validate() error {
-	if len(m.ResourceID) == 0 {
+	if !m.ResourceID.Valid() {
 		return errors.New("ResourceID is required")
 	}
-	if len(m.UserID) == 0 {
+	if !m.UserID.Valid() {
 		return errors.New("UserID is required")
 	}
 	if m.UserType != Owner && m.UserType != Member {
