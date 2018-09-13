@@ -1,7 +1,6 @@
 package bolt
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -65,8 +64,8 @@ func (c *Client) findDashboardByID(ctx context.Context, tx *bolt.Tx, id platform
 
 // FindDashboard retrieves a dashboard using an arbitrary dashboard filter.
 func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFilter) (*platform.Dashboard, error) {
-	if filter.ID != nil {
-		return c.FindDashboardByID(ctx, *filter.ID)
+	if filter.ID.Valid() {
+		return c.FindDashboardByID(ctx, filter.ID)
 	}
 
 	var d *platform.Dashboard
@@ -93,9 +92,9 @@ func (c *Client) FindDashboard(ctx context.Context, filter platform.DashboardFil
 }
 
 func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
-	if filter.ID != nil {
+	if filter.ID.Valid() {
 		return func(d *platform.Dashboard) bool {
-			return d.ID.Valid() && d.ID == *filter.ID
+			return d.ID.Valid() && d.ID == filter.ID
 		}
 	}
 
@@ -104,8 +103,8 @@ func filterDashboardsFn(filter platform.DashboardFilter) func(d *platform.Dashbo
 
 // FindDashboards retrives all dashboards that match an arbitrary dashboard filter.
 func (c *Client) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
-	if filter.ID != nil {
-		d, err := c.FindDashboardByID(ctx, *filter.ID)
+	if filter.ID.Valid() {
+		d, err := c.FindDashboardByID(ctx, filter.ID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -166,7 +165,7 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 }
 
 func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
-	if len(opts.UsingView) != 0 {
+	if opts.UsingView.Valid() {
 		// Creates a hard copy of a view
 		v, err := c.findViewByID(ctx, tx, opts.UsingView)
 		if err != nil {
@@ -178,7 +177,7 @@ func (c *Client) createViewIfNotExists(ctx context.Context, tx *bolt.Tx, cell *p
 		}
 		cell.ViewID = view.ID
 		return nil
-	} else if len(cell.ViewID) != 0 {
+	} else if cell.ViewID.Valid() {
 		// Creates a soft copy of a view
 		_, err := c.findViewByID(ctx, tx, cell.ViewID)
 		if err != nil {
@@ -211,7 +210,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 		}
 
 		for _, cell := range cs {
-			if len(cell.ID) == 0 {
+			if !cell.ID.Valid() {
 				return fmt.Errorf("cannot provide empty cell id")
 			}
 
@@ -220,7 +219,7 @@ func (c *Client) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs [
 				return fmt.Errorf("cannot replace cells that were not already present")
 			}
 
-			if !bytes.Equal(cl.ViewID, cell.ViewID) {
+			if cl.ViewID == cell.ViewID {
 				return fmt.Errorf("cannot update view id in replace")
 			}
 		}
@@ -258,7 +257,7 @@ func (c *Client) RemoveDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
@@ -287,7 +286,7 @@ func (c *Client) UpdateDashboardCell(ctx context.Context, dashboardID, cellID pl
 
 		idx := -1
 		for i, cell := range d.Cells {
-			if bytes.Equal(cell.ID, cellID) {
+			if cell.ID == cellID {
 				idx = i
 				break
 			}
