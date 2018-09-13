@@ -159,6 +159,7 @@ func CreateAuthorization(
 						UserID: MustIDFromString(userTwoID),
 						User:   "regularuser",
 						Token:  "rand",
+						Status: platform.Active,
 						Permissions: []platform.Permission{
 							platform.CreateUserPermission,
 						},
@@ -370,6 +371,7 @@ func FindAuthorizationByToken(
 				authorization: &platform.Authorization{
 					ID:     MustIDFromString(authOneID),
 					UserID: MustIDFromString(userOneID),
+					Status: platform.Inactive,
 					User:   "cooluser",
 					Token:  "rand1",
 					Permissions: []platform.Permission{
