@@ -3,18 +3,20 @@ import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
-import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
+import DefaultToggle from 'src/dashboards/components/DashboardDefaultToggle'
 
 import {Dashboard} from 'src/types/v2'
 
 interface Props {
   dashboards: Dashboard[]
+  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => () => void
   onCreateDashboard: () => void
   onCloneDashboard: (
     dashboard: Dashboard
   ) => (event: MouseEvent<HTMLButtonElement>) => void
   onExportDashboard: (dashboard: Dashboard) => () => void
+  onSetDefaultDashboard: (dashboardLink: string) => void
 }
 
 class DashboardsTable extends PureComponent<Props & WithRouterProps> {
@@ -24,6 +26,8 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
       onCloneDashboard,
       onDeleteDashboard,
       onExportDashboard,
+      onSetDefaultDashboard,
+      defaultDashboardLink,
     } = this.props
 
     if (!dashboards.length) {
@@ -48,9 +52,10 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
                 </Link>
               </td>
               <td>
-                <SlideToggle
-                  active={dashboard.default}
-                  onChange={this.handleSetDefaultDashboard}
+                <DefaultToggle
+                  dashboardLink={dashboard.links.self}
+                  defaultDashboardLink={defaultDashboardLink}
+                  onChangeDefault={onSetDefaultDashboard}
                 />
               </td>
               <td className="text-right">
@@ -80,12 +85,6 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
         </tbody>
       </table>
     )
-  }
-
-  private handleSetDefaultDashboard = (): void => {
-    // if all items in the list are false.  this is fine.
-    // if one item in the list is true all others must be false.
-    console.log('setting default dashboard')
   }
 
   private get sourceParam(): string {
