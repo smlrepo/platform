@@ -108,6 +108,7 @@ export interface Dashboard {
   id: string
   cells: Cell[]
   name: string
+  default: boolean
   links: DashboardLinks
   meta?: {[x: string]: any}
 }

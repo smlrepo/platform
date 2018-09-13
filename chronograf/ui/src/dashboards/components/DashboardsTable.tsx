@@ -3,6 +3,7 @@ import {Link, withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 import ConfirmButton from 'src/shared/components/ConfirmButton'
+import SlideToggle from 'src/reusable_ui/components/slide_toggle/SlideToggle'
 
 import {Dashboard} from 'src/types/v2'
 
@@ -34,6 +35,7 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Default Dashboard</th>
             <th />
           </tr>
         </thead>
@@ -44,6 +46,12 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
                 <Link to={`/dashboards/${dashboard.id}?${this.sourceParam}`}>
                   {dashboard.name}
                 </Link>
+              </td>
+              <td>
+                <SlideToggle
+                  active={dashboard.default}
+                  onChange={this.handleSetDefaultDashboard}
+                />
               </td>
               <td className="text-right">
                 <button
@@ -72,6 +80,12 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps> {
         </tbody>
       </table>
     )
+  }
+
+  private handleSetDefaultDashboard = (): void => {
+    // if all items in the list are false.  this is fine.
+    // if one item in the list is true all others must be false.
+    console.log('setting default dashboard')
   }
 
   private get sourceParam(): string {

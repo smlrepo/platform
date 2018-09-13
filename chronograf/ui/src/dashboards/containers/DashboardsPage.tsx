@@ -62,13 +62,13 @@ class DashboardsPage extends PureComponent<Props> {
       <div className="page">
         <PageHeader titleText="Dashboards" sourceIndicator={false} />
         <DashboardsContents
+          notify={notify}
           dashboards={dashboards}
           onDeleteDashboard={this.handleDeleteDashboard}
           onCreateDashboard={this.handleCreateDashboard}
           onCloneDashboard={this.handleCloneDashboard}
           onExportDashboard={this.handleExportDashboard}
           onImportDashboard={this.handleImportDashboard}
-          notify={notify}
         />
       </div>
     )
