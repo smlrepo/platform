@@ -69,6 +69,6 @@ type FindOptions struct {
 }
 
 // InternalBucketID returns the ID for an organization's specified internal bucket
-func InternalBucketID(o Organization, t BucketType) (*ID, error) {
-	return IDFromString(fmt.Sprintf("%s%d", o.ID.String(), t))
+func InternalBucketID(t BucketType) (*ID, error) {
+	return IDFromString(fmt.Sprintf("%d", t))
 }
