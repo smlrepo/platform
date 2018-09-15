@@ -16,7 +16,6 @@ import (
 	"github.com/influxdata/platform/mock"
 	_ "github.com/influxdata/platform/query/builtin"
 	"github.com/influxdata/platform/query/influxql"
-	"github.com/influxdata/platform/query/querytest"
 	platformtesting "github.com/influxdata/platform/testing"
 
 	"github.com/andreyvit/diff"
