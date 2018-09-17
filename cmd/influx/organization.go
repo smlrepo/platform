@@ -246,236 +246,251 @@ func init() {
 	organizationCmd.AddCommand(organizationDeleteCmd)
 }
 
-// Owner management
-var organizationOwnersCmd = &cobra.Command{
-	Use:   "owners",
-	Short: "organization ownership commands",
+// Member management
+var organizationMembersCmd = &cobra.Command{
+	Use:   "members",
+	Short: "organization membership commands",
 	Run:   organizationF,
 }
 
 func init() {
-	organizationCmd.AddCommand(organizationOwnersCmd)
+	organizationCmd.AddCommand(organizationMembersCmd)
 }
 
-// List Owners
-type OrganizationOwnersListFlags struct {
+// List Members
+type OrganizationMembersListFlags struct {
 	name string
 	id   string
 }
 
-var organizationOwnersListFlags OrganizationOwnersListFlags
+var organizationMembersListFlags OrganizationMembersListFlags
 
-func organizationOwnersListF(cmd *cobra.Command, args []string) {
-	s := &http.OrganizationService{
+func organizationMembersListF(cmd *cobra.Command, args []string) {
+	orgS := &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
-	if organizationOwnersListFlags.id == "" && organizationOwnersListFlags.name == "" {
+	mappingS := &http.UserResourceMappingService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	if organizationMembersListFlags.id == "" && organizationMembersListFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationOwnersListFlags.name != "" {
-		filter.Name = &organizationOwnersListFlags.name
+	if organizationMembersListFlags.name != "" {
+		filter.Name = &organizationMembersListFlags.name
 	}
 
-	if organizationOwnersListFlags.id != "" {
+	if organizationMembersListFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationOwnersListFlags.id)
+		err := filter.ID.DecodeFromString(organizationMembersListFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
 
-	organization, err := s.FindOrganization(context.Background(), filter)
+	organization, err := orgS.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	owners := organization.Owners
+	members := organization.Members
 
 	// TODO: look up each user and output their name
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
 		"ID",
 	)
-	for _, owner := range owners {
+	for _, member := range members {
 		w.Write(map[string]interface{}{
-			"ID": owner.ID.String(),
+			"ID": member.ID.String(),
 		})
 	}
 	w.Flush()
 }
 
 func init() {
-	organizationOwnersListCmd := &cobra.Command{
+	organizationMembersListCmd := &cobra.Command{
 		Use:   "list",
-		Short: "List organization owners",
-		Run:   organizationOwnersListF,
+		Short: "List organization members",
+		Run:   organizationMembersListF,
 	}
 
-	organizationOwnersListCmd.Flags().StringVarP(&organizationOwnersListFlags.id, "id", "i", "", "organization id")
-	organizationOwnersListCmd.Flags().StringVarP(&organizationOwnersListFlags.name, "name", "n", "", "organization name")
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.id, "id", "i", "", "organization id")
+	organizationMembersListCmd.Flags().StringVarP(&organizationMembersListFlags.name, "name", "n", "", "organization name")
 
-	organizationOwnersCmd.AddCommand(organizationOwnersListCmd)
+	organizationMembersCmd.AddCommand(organizationMembersListCmd)
 }
 
-// Add Owner
-type OrganizationOwnersAddFlags struct {
-	name    string
-	id      string
-	ownerId string
+// Add Member
+type OrganizationMembersAddFlags struct {
+	name     string
+	id       string
+	memberId string
 }
 
-var organizationOwnersAddFlags OrganizationOwnersAddFlags
+var organizationMembersAddFlags OrganizationMembersAddFlags
 
-func organizationOwnersAddF(cmd *cobra.Command, args []string) {
-	if organizationOwnersAddFlags.id == "" && organizationOwnersAddFlags.name == "" {
+func organizationMembersAddF(cmd *cobra.Command, args []string) {
+	if organizationMembersAddFlags.id == "" && organizationMembersAddFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
-	if organizationOwnersAddFlags.id != "" && organizationOwnersAddFlags.name != "" {
+	if organizationMembersAddFlags.id != "" && organizationMembersAddFlags.name != "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
-	s := &http.OrganizationService{
+	orgS := &http.OrganizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	mappingS := &http.UserResourceMappingService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationOwnersAddFlags.name != "" {
-		filter.Name = &organizationOwnersListFlags.name
+	if organizationMembersAddFlags.name != "" {
+		filter.Name = &organizationMembersListFlags.name
 	}
 
-	if organizationOwnersAddFlags.id != "" {
+	if organizationMembersAddFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationOwnersAddFlags.id)
+		err := filter.ID.DecodeFromString(organizationMembersAddFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
 
-	organization, err := s.FindOrganization(context.Background(), filter)
+	organization, err := orgS.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	ownerID := &platform.ID{}
-	err = ownerID.DecodeFromString(organizationOwnersAddFlags.ownerId)
+	memberID := &platform.ID{}
+	err = memberID.DecodeFromString(organizationMembersAddFlags.memberId)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	owner := &platform.Owner{ID: *ownerID}
-	if err = s.AddOrganizationOwner(context.Background(), organization.ID, owner); err != nil {
+	member := &platform.Member{ID: *memberID}
+	if err = orgS.AddOrganizationMember(context.Background(), organization.ID, member); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	fmt.Println("Owner added")
+	fmt.Println("Member added")
 }
 
 func init() {
-	organizationOwnersAddCmd := &cobra.Command{
+	organizationMembersAddCmd := &cobra.Command{
 		Use:   "add",
-		Short: "Add organization owner",
-		Run:   organizationOwnersAddF,
+		Short: "Add organization member",
+		Run:   organizationMembersAddF,
 	}
 
-	organizationOwnersAddCmd.Flags().StringVarP(&organizationOwnersAddFlags.id, "id", "i", "", "organization id")
-	organizationOwnersAddCmd.Flags().StringVarP(&organizationOwnersAddFlags.name, "name", "n", "", "organization name")
-	organizationOwnersAddCmd.Flags().StringVarP(&organizationOwnersAddFlags.ownerId, "owner", "o", "", "owner id")
-	organizationOwnersAddCmd.MarkFlagRequired("owner")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.id, "id", "i", "", "organization id")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.name, "name", "n", "", "organization name")
+	organizationMembersAddCmd.Flags().StringVarP(&organizationMembersAddFlags.memberId, "member", "o", "", "member id")
+	organizationMembersAddCmd.MarkFlagRequired("member")
 
-	organizationOwnersCmd.AddCommand(organizationOwnersAddCmd)
+	organizationMembersCmd.AddCommand(organizationMembersAddCmd)
 }
 
-// Remove Owner
-type OrganizationOwnersRemoveFlags struct {
-	name    string
-	id      string
-	ownerId string
+// Remove Member
+type OrganizationMembersRemoveFlags struct {
+	name     string
+	id       string
+	memberId string
 }
 
-var organizationOwnersRemoveFlags OrganizationOwnersRemoveFlags
+var organizationMembersRemoveFlags OrganizationMembersRemoveFlags
 
-func organizationOwnersRemoveF(cmd *cobra.Command, args []string) {
-	if organizationOwnersRemoveFlags.id == "" && organizationOwnersRemoveFlags.name == "" {
+func organizationMembersRemoveF(cmd *cobra.Command, args []string) {
+	if organizationMembersRemoveFlags.id == "" && organizationMembersRemoveFlags.name == "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
-	if organizationOwnersRemoveFlags.id != "" && organizationOwnersRemoveFlags.name != "" {
+	if organizationMembersRemoveFlags.id != "" && organizationMembersRemoveFlags.name != "" {
 		fmt.Println("must specify exactly one of id and name")
 		cmd.Usage()
 		os.Exit(1)
 	}
 
-	s := &http.OrganizationService{
+	orgS := &http.OrganizationService{
+		Addr:  flags.host,
+		Token: flags.token,
+	}
+
+	mappingS := &http.UserResourceMappingService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
 
 	filter := platform.OrganizationFilter{}
-	if organizationOwnersRemoveFlags.name != "" {
-		filter.Name = &organizationOwnersRemoveFlags.name
+	if organizationMembersRemoveFlags.name != "" {
+		filter.Name = &organizationMembersRemoveFlags.name
 	}
 
-	if organizationOwnersRemoveFlags.id != "" {
+	if organizationMembersRemoveFlags.id != "" {
 		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationOwnersRemoveFlags.id)
+		err := filter.ID.DecodeFromString(organizationMembersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
 
-	organization, err := s.FindOrganization(context.Background(), filter)
+	organization, err := orgS.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	ownerID := &platform.ID{}
-	err = ownerID.DecodeFromString(bucketOwnersRemoveFlags.ownerId)
+	memberID := &platform.ID{}
+	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberId)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err = s.RemoveOrganizationOwner(context.Background(), organization.ID, *ownerID); err != nil {
+	if err = orgS.RemoveOrganizationMember(context.Background(), organization.ID, *memberID); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	fmt.Println("Owner removed")
+	fmt.Println("Member removed")
 }
 
 func init() {
-	organizationOwnersRemoveCmd := &cobra.Command{
+	organizationMembersRemoveCmd := &cobra.Command{
 		Use:   "remove",
-		Short: "Remove organization owner",
-		Run:   organizationOwnersRemoveF,
+		Short: "Remove organization member",
+		Run:   organizationMembersRemoveF,
 	}
 
-	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.id, "id", "i", "", "organization id")
-	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.name, "name", "n", "", "organization name")
-	organizationOwnersRemoveCmd.Flags().StringVarP(&organizationOwnersRemoveFlags.ownerId, "owner", "o", "", "owner id")
-	organizationOwnersRemoveCmd.MarkFlagRequired("owner")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.id, "id", "i", "", "organization id")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.name, "name", "n", "", "organization name")
+	organizationMembersRemoveCmd.Flags().StringVarP(&organizationMembersRemoveFlags.memberId, "member", "o", "", "member id")
+	organizationMembersRemoveCmd.MarkFlagRequired("member")
 
-	organizationOwnersCmd.AddCommand(organizationOwnersRemoveCmd)
+	organizationMembersCmd.AddCommand(organizationMembersRemoveCmd)
 }
