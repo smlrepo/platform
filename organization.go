@@ -29,14 +29,6 @@ type OrganizationService interface {
 
 	// Removes a organization by ID.
 	DeleteOrganization(ctx context.Context, id ID) error
-
-	AddOrganizationMember(ctx context.Context, orgID ID) error
-
-	GetOrganizationMembers(ctx context.Context, orgID ID) (*[]User, error)
-
-	GetOrganizationMember(ctx context.Context, orgID ID) (*User, error)
-
-	RemoveOrganizationMember(ctx context.Context, orgID ID, memberID ID) error
 }
 
 // OrganizationUpdate represents updates to a organization.
