@@ -26,9 +26,9 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/task/backend"
+	bolt "go.etcd.io/bbolt"
 )
 
 // ErrDBReadOnly is an error for when the database is set to read only.
@@ -66,7 +66,7 @@ var (
 	runIDs       = []byte(basePath + "run_ids")
 )
 
-// New gives us a new Store based on "github.com/coreos/bbolt"
+// New gives us a new Store based on "go.etcd.io/bbolt"
 func New(db *bolt.DB, rootBucket string) (*Store, error) {
 	if db.IsReadOnly() {
 		return nil, ErrDBReadOnly

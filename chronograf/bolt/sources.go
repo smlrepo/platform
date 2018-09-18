@@ -4,10 +4,10 @@ import (
 	"context"
 	"math"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt/internal"
 	"github.com/influxdata/platform/chronograf/roles"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure SourcesStore implements chronograf.SourcesStore.

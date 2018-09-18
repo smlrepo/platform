@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	kerrors "github.com/influxdata/platform/kit/errors"
+	bolt "go.etcd.io/bbolt"
 )
 
 var (
