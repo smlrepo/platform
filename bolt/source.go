@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	bolt "go.etcd.io/bbolt"
 )
 
 var (

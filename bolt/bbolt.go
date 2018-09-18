@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/rand"
 	"github.com/influxdata/platform/snowflake"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 
