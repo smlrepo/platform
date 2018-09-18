@@ -2,6 +2,7 @@ package testing
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -90,7 +91,35 @@ func CreateUserResourceMapping(
 				},
 			},
 		},
-		// {name: "duplicate mappings are not allowed"},
+		{
+			name: "duplicate mappings are not allowed",
+			fields: UserResourceFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: idFromString(t, bucketOneID),
+						UserID:     idFromString(t, userOneID),
+						UserType:   platform.Member,
+					},
+				},
+			},
+			args: args{
+				mapping: &platform.UserResourceMapping{
+					ResourceID: idFromString(t, bucketOneID),
+					UserID:     idFromString(t, userOneID),
+					UserType:   platform.Member,
+				},
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: idFromString(t, bucketOneID),
+						UserID:     idFromString(t, userOneID),
+						UserType:   platform.Member,
+					},
+				},
+				err: fmt.Errorf("mapping for user %s already exists", userOneID),
+			},
+		},
 	}
 
 	for _, tt := range tests {
