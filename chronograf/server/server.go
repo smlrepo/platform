@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"time"
 
-	bbolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt"
 	idgen "github.com/influxdata/platform/chronograf/id"
@@ -26,6 +25,7 @@ import (
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
+	bbolt "go.etcd.io/bbolt"
 )
 
 var (

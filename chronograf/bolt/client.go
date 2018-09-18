@@ -8,9 +8,9 @@ import (
 	"path"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/id"
+	bolt "go.etcd.io/bbolt"
 )
 
 const (

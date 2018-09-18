@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform/chronograf"
 	"github.com/influxdata/platform/chronograf/bolt/internal"
 	"github.com/influxdata/platform/chronograf/organizations"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure OrganizationsStore implements chronograf.OrganizationsStore.
