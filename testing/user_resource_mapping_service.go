@@ -1,8 +1,10 @@
 package testing
 
 import (
+	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 )
 
@@ -17,3 +19,104 @@ type userResourceMappingServiceF func(
 )
 
 // UserResourceMappingService tests all the service functions.
+func UserResourceMappingService(
+	init func(UserResourceFields, *testing.T) (platform.UserResourceMappingService, func()),
+	t *testing.T,
+) {
+	tests := []struct {
+		name string
+		fn   userResourceMappingServiceF
+	}{
+		{
+			name: "CreateUserResourceMapping",
+			fn:   CreateUserResourceMapping,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.fn(init, t)
+		})
+	}
+}
+
+func CreateUserResourceMapping(
+	init func(UserResourceFields, *testing.T) (platform.UserResourceMappingService, func()),
+	t *testing.T,
+) {
+	type args struct {
+		mapping *platform.UserResourceMapping
+	}
+	type wants struct {
+		err      error
+		mappings []*platform.UserResourceMapping
+	}
+
+	tests := []struct {
+		name   string
+		fields UserResourceFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "basic create user resource mapping",
+			fields: UserResourceFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: idFromString(t, bucketOneID),
+						UserID:     idFromString(t, userOneID),
+						UserType:   platform.Member,
+					},
+				},
+			},
+			args: args{
+				mapping: &platform.UserResourceMapping{
+					ResourceID: idFromString(t, bucketTwoID),
+					UserID:     idFromString(t, userTwoID),
+					UserType:   platform.Member,
+				},
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{
+					{
+						ResourceID: idFromString(t, bucketOneID),
+						UserID:     idFromString(t, userOneID),
+						UserType:   platform.Member,
+					},
+					{
+						ResourceID: idFromString(t, bucketTwoID),
+						UserID:     idFromString(t, userTwoID),
+						UserType:   platform.Member,
+					},
+				},
+			},
+		},
+		// {name: "duplicate mappings are not allowed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, done := init(tt.fields, t)
+			defer done()
+			ctx := context.TODO()
+			err := s.CreateUserResourceMapping(ctx, tt.args.mapping)
+			if (err != nil) != (tt.wants.err != nil) {
+				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
+			}
+
+			if err != nil && tt.wants.err != nil {
+				if err.Error() != tt.wants.err.Error() {
+					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
+				}
+			}
+			defer s.DeleteUserResourceMapping(ctx, tt.args.mapping.ResourceID, tt.args.mapping.UserID)
+
+			buckets, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{})
+			if err != nil {
+				t.Fatalf("failed to retrieve mappings: %v", err)
+			}
+			if diff := cmp.Diff(buckets, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
