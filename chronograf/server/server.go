@@ -25,7 +25,7 @@ import (
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
-	bolt "go.etcd.io/bbolt"
+	bbolt "go.etcd.io/bbolt"
 )
 
 var (
