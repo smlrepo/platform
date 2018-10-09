@@ -22,18 +22,18 @@ import (
 const (
 	// MetricsPath exposes the prometheus metrics over /metrics.
 	MetricsPath = "/metrics"
-	// HealthzPath exposes the health of the service over /healthz.
-	HealthzPath = "/healthz"
+	// HealthPath exposes the health of the service over /health.
+	HealthPath = "/health"
 	// DebugPath exposes /debug/pprof for go debugging.
 	DebugPath = "/debug"
 )
 
-// Handler provides basic handling of metrics, healthz and debug endpoints.
+// Handler provides basic handling of metrics, health and debug endpoints.
 // All other requests are passed down to the sub handler.
 type Handler struct {
 	name string
-	// HealthzHandler handles healthz requests
-	HealthzHandler http.Handler
+	// HealthHandler handles health requests
+	HealthHandler http.Handler
 	// MetricsHandler handles metrics requests
 	MetricsHandler http.Handler
 	// DebugHandler handles debug requests
@@ -75,7 +75,7 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
 		name:           name,
 		MetricsHandler: reg.HTTPHandler(),
 		DebugHandler:   http.DefaultServeMux,
-		HealthzHandler: http.HandlerFunc(HealthzHandler),
+		HealthHandler:  http.HandlerFunc(HealthHandler),
 	}
 	h.initMetrics()
 	reg.MustRegister(h.PrometheusCollectors()...)
@@ -127,16 +127,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"status":  statusClass,
 		}).Observe(duration.Seconds())
 		if h.Logger != nil {
-			err := errors.New(w.Header().Get(ErrorHeader))
-			errReference := w.Header().Get(ReferenceHeader)
-			h.Logger.Info("served http request",
+			errField := zap.Skip()
+			if errStr := w.Header().Get(ErrorHeader); errStr != "" {
+				errField = zap.Error(errors.New(errStr))
+			}
+			errReferenceField := zap.Skip()
+			if errReference := w.Header().Get(ReferenceHeader); errReference != "" {
+				errReferenceField = zap.String("reference", errReference)
+			}
+
+			h.Logger.Info("Served http request",
 				zap.String("handler", h.name),
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
 				zap.Int("status", statusCode),
 				zap.Int("duration_ns", int(duration)),
-				zap.Error(err),
-				zap.String("reference", errReference),
+				errField,
+				errReferenceField,
 			)
 		}
 	}(time.Now())
@@ -144,8 +151,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.URL.Path == MetricsPath:
 		h.MetricsHandler.ServeHTTP(w, r)
-	case r.URL.Path == HealthzPath:
-		h.HealthzHandler.ServeHTTP(w, r)
+	case r.URL.Path == HealthPath:
+		h.HealthHandler.ServeHTTP(w, r)
 	case strings.HasPrefix(r.URL.Path, DebugPath):
 		h.DebugHandler.ServeHTTP(w, r)
 	default:

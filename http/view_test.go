@@ -46,7 +46,7 @@ func TestService_handleGetViews(t *testing.T) {
 									ID:   platform.ID("0"),
 									Name: "hello",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							},
@@ -67,45 +67,29 @@ func TestService_handleGetViews(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/views"
+    "self": "/api/v2/views"
   },
   "views": [
     {
       "id": "30",
       "name": "hello",
       "links": {
-        "self": "/v2/views/30"
+        "self": "/api/v2/views/30"
       },
       "properties": {
-        "shape": "chronograf-v1",
+        "shape": "chronograf-v2",
         "queries": null,
         "axes": null,
         "type": "line",
         "colors": null,
-        "legend": {},
-        "tableOptions": {
-          "verticalTimeAxis": false,
-          "sortBy": {
-            "internalName": "",
-            "displayName": "",
-            "visible": false
-          },
-          "wrapping": "",
-          "fixFirstColumn": false
-        },
-        "fieldOptions": null,
-        "timeFormat": "",
-        "decimalPlaces": {
-          "isEnforced": false,
-          "digits": 0
-        }
+        "legend": {}
       }
     },
     {
       "id": "32",
       "name": "example",
       "links": {
-        "self": "/v2/views/32"
+        "self": "/api/v2/views/32"
       },
       "properties": {
         "shape": "empty"
@@ -131,7 +115,7 @@ func TestService_handleGetViews(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v2/views"
+    "self": "/api/v2/views"
   },
   "views": []
 }`,
@@ -220,7 +204,7 @@ func TestService_handleGetView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
     "shape": "empty"
@@ -319,7 +303,7 @@ func TestService_handlePostViews(t *testing.T) {
 					ViewContents: platform.ViewContents{
 						Name: "hello",
 					},
-					Properties: platform.V1ViewProperties{
+					Properties: platform.LineViewProperties{
 						Type: "line",
 					},
 				},
@@ -332,31 +316,15 @@ func TestService_handlePostViews(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "hello",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
-    "shape": "chronograf-v1",
+    "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
     "type": "line",
     "colors": null,
-    "legend": {},
-    "tableOptions": {
-      "verticalTimeAxis": false,
-      "sortBy": {
-        "internalName": "",
-        "displayName": "",
-        "visible": false
-      },
-      "wrapping": "",
-      "fixFirstColumn": false
-    },
-    "fieldOptions": null,
-    "timeFormat": "",
-    "decimalPlaces": {
-      "isEnforced": false,
-      "digits": 0
-    }
+    "legend": {}
   }
 }
 `,
@@ -523,7 +491,7 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   mustParseID("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							}, nil
@@ -545,31 +513,15 @@ func TestService_handlePatchView(t *testing.T) {
   "id": "020f755c3c082000",
   "name": "example",
   "links": {
-    "self": "/v2/views/020f755c3c082000"
+    "self": "/api/v2/views/020f755c3c082000"
   },
   "properties": {
-    "shape": "chronograf-v1",
+    "shape": "chronograf-v2",
     "queries": null,
     "axes": null,
     "type": "line",
     "colors": null,
-    "legend": {},
-    "tableOptions": {
-      "verticalTimeAxis": false,
-      "sortBy": {
-        "internalName": "",
-        "displayName": "",
-        "visible": false
-      },
-      "wrapping": "",
-      "fixFirstColumn": false
-    },
-    "fieldOptions": null,
-    "timeFormat": "",
-    "decimalPlaces": {
-      "isEnforced": false,
-      "digits": 0
-    }
+    "legend": {}
   }
 }
 `,
@@ -586,7 +538,7 @@ func TestService_handlePatchView(t *testing.T) {
 									ID:   mustParseID("020f755c3c082000"),
 									Name: "example",
 								},
-								Properties: platform.V1ViewProperties{
+								Properties: platform.LineViewProperties{
 									Type: "line",
 								},
 							}, nil

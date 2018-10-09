@@ -7,9 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
@@ -20,7 +25,7 @@ import (
 )
 
 const (
-	fluxPath = "/v2/query"
+	fluxPath = "/api/v2/query"
 )
 
 // FluxHandler implements handling flux queries.
@@ -29,38 +34,44 @@ type FluxHandler struct {
 
 	Logger *zap.Logger
 
+	Now                  func() time.Time
 	AuthorizationService platform.AuthorizationService
 	OrganizationService  platform.OrganizationService
 	ProxyQueryService    query.ProxyQueryService
 }
 
-// NewFluxHandler returns a new handler at /v2/query for flux queries.
+// NewFluxHandler returns a new handler at /api/v2/query for flux queries.
 func NewFluxHandler() *FluxHandler {
 	h := &FluxHandler{
 		Router: httprouter.New(),
+		Now:    time.Now,
 		Logger: zap.NewNop(),
 	}
 
-	h.HandlerFunc("POST", "/v2/query", h.handlePostQuery)
+	h.HandlerFunc("POST", fluxPath, h.handlePostQuery)
+	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
+	h.HandlerFunc("POST", "/api/v2/query/spec", h.postFluxSpec)
+	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)
+	h.HandlerFunc("GET", "/api/v2/query/suggestions/:name", h.getFluxSuggestion)
 	return h
 }
 
 func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tok, err := pcontext.GetToken(ctx)
+	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	auth, err := h.AuthorizationService.FindAuthorizationByID(ctx, a.Identifier())
 	if err != nil {
-		EncodeError(ctx, errors.Wrap(err, "invalid token", errors.InvalidData), w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
-	if !platform.IsActive(auth) {
-		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
+	if !auth.IsActive() {
+		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for query"), w)
 		return
 	}
 
@@ -91,6 +102,140 @@ func (h *FluxHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type langRequest struct {
+	Query string `json:"query"`
+}
+
+type postFluxASTResponse struct {
+	AST *ast.Program `json:"ast"`
+}
+
+// postFluxAST returns a flux AST for provided flux string
+func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
+	var request langRequest
+	ctx := r.Context()
+
+	err := json.NewDecoder(r.Body).Decode(&request)
+	if err != nil {
+		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		return
+	}
+
+	ast, err := parser.NewAST(request.Query)
+	if err != nil {
+		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
+		return
+	}
+
+	res := postFluxASTResponse{
+		AST: ast,
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type postFluxSpecResponse struct {
+	Spec *flux.Spec `json:"spec"`
+}
+
+// postFluxSpec returns a flux Spec for provided flux string
+func (h *FluxHandler) postFluxSpec(w http.ResponseWriter, r *http.Request) {
+	var req langRequest
+	ctx := r.Context()
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		EncodeError(ctx, errors.MalformedDataf("invalid json: %v", err), w)
+		return
+	}
+
+	spec, err := flux.Compile(ctx, req.Query, h.Now())
+	if err != nil {
+		EncodeError(ctx, errors.InvalidDataf("invalid json: %v", err), w)
+		return
+	}
+
+	res := postFluxSpecResponse{
+		Spec: spec,
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+// fluxParams contain flux funciton parameters as defined by the semantic graph
+type fluxParams map[string]string
+
+// suggestionResponse provides the parameters available for a given Flux function
+type suggestionResponse struct {
+	Name   string     `json:"name"`
+	Params fluxParams `json:"params"`
+}
+
+// suggestionsResponse provides a list of available Flux functions
+type suggestionsResponse struct {
+	Functions []suggestionResponse `json:"funcs"`
+}
+
+// getFluxSuggestions returns a list of available Flux functions for the Flux Builder
+func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	completer := complete.DefaultCompleter()
+	names := completer.FunctionNames()
+	var functions []suggestionResponse
+	for _, name := range names {
+		suggestion, err := completer.FunctionSuggestion(name)
+		if err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+
+		filteredParams := make(fluxParams)
+		for key, value := range suggestion.Params {
+			if key == "table" {
+				continue
+			}
+
+			filteredParams[key] = value
+		}
+
+		functions = append(functions, suggestionResponse{
+			Name:   name,
+			Params: filteredParams,
+		})
+	}
+	res := suggestionsResponse{Functions: functions}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+// getFluxSuggestion returns the function parameters for the requested function
+func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	name := httprouter.ParamsFromContext(ctx).ByName("name")
+	completer := complete.DefaultCompleter()
+
+	suggestion, err := completer.FunctionSuggestion(name)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	res := suggestionResponse{Name: name, Params: suggestion.Params}
+	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
 // PrometheusCollectors satisifies the prom.PrometheusCollector interface.
 func (h *FluxHandler) PrometheusCollectors() []prometheus.Collector {
 	// TODO: gather and return relevant metrics.
@@ -101,7 +246,7 @@ var _ query.ProxyQueryService = (*FluxService)(nil)
 
 // FluxService connects to Influx via HTTP using tokens to run queries.
 type FluxService struct {
-	URL                string
+	Addr               string
 	Token              string
 	InsecureSkipVerify bool
 }
@@ -109,7 +254,7 @@ type FluxService struct {
 // Query runs a flux query against a influx server and sends the results to the io.Writer.
 // Will use the token from the context over the token within the service struct.
 func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequest) (int64, error) {
-	u, err := newURL(s.URL, fluxPath)
+	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
 		return 0, err
 	}
@@ -153,19 +298,22 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 
 var _ query.QueryService = (*FluxQueryService)(nil)
 
-// FluxQueryService implements query.QueryService by making HTTP requests to the /v2/query API endpoint.
+// FluxQueryService implements query.QueryService by making HTTP requests to the /api/v2/query API endpoint.
 type FluxQueryService struct {
-	URL                string
+	Addr               string
 	Token              string
 	InsecureSkipVerify bool
 }
 
 // Query runs a flux query against a influx server and decodes the result
 func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.ResultIterator, error) {
-	u, err := newURL(s.URL, fluxPath)
+	u, err := newURL(s.Addr, fluxPath)
 	if err != nil {
 		return nil, err
 	}
+	params := url.Values{}
+	params.Set(OrgID, r.OrganizationID.String())
+	u.RawQuery = params.Encode()
 
 	preq := &query.ProxyRequest{
 		Request: *r,

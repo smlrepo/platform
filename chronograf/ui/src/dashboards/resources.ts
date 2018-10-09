@@ -3,7 +3,6 @@ import {
   Service,
   Source,
   SourceAuthenticationMethod,
-  CellQuery,
   SourceLinks,
   Cell,
   TimeRange,
@@ -17,13 +16,15 @@ import {
   TableOptions,
   FieldOption,
   DecimalPlaces,
-  CellType,
-} from 'src/types/dashboards'
-import {LineColor, ColorNumber} from 'src/types/colors'
+  DashboardQuery,
+  InfluxLanguages,
+} from 'src/types/v2/dashboards'
+import {Color} from 'src/types/colors'
 
 export const dashboard = {
   id: '1',
   name: 'd1',
+  default: false,
   cells: [
     {
       x: 1,
@@ -42,6 +43,7 @@ export const dashboard = {
   links: {
     self: '/v2/dashboards/1',
     cells: '/v2/dashboards/cells',
+    copy: '/v2/dashboards/1/cells/1/copy',
   },
 }
 
@@ -131,10 +133,10 @@ export const queryConfig: QueryConfig = {
   shifts: null,
 }
 
-export const query: CellQuery = {
-  query:
+export const query: DashboardQuery = {
+  text:
     'SELECT mean("usage_idle") AS "mean_usage_idle", mean("usage_user") AS "mean_usage_user" FROM "telegraf"."autogen"."cpu" WHERE time > :dashboardTime: GROUP BY time(:interval:) FILL(null)',
-  queryConfig,
+  type: InfluxLanguages.InfluxQL,
   source: '',
 }
 
@@ -175,7 +177,7 @@ export const tableOptions: TableOptions = {
   wrapping: 'truncate',
   fixFirstColumn: true,
 }
-export const lineColors: LineColor[] = [
+export const lineColors: Color[] = [
   {
     id: '574fb0a3-0a26-44d7-8d71-d4981756acb1',
     type: 'scale',
@@ -205,26 +207,17 @@ export const decimalPlaces: DecimalPlaces = {
 }
 
 export const cell: Cell = {
-  i: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+  id: '67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
   x: 0,
   y: 0,
   w: 8,
   h: 4,
-  name: 'Untitled Graph',
-  queries: [query],
-  axes,
-  type: CellType.Line,
-  colors: lineColors,
-  legend: {},
-  tableOptions,
-  fieldOptions,
-  timeFormat: 'MM/DD/YYYY HH:mm:ss',
-  decimalPlaces,
+  viewID: '1',
   links: {
-    self:
-      '/chronograf/v1/dashboards/9/cells/67435af2-17bf-4caa-a5fc-0dd1ffb40dab',
+    self: '/chronograf/v1/dashboards/9/cells/67435',
+    view: '1',
+    copy: '12',
   },
-  inView: true,
 }
 
 export const fullTimeRange = {
@@ -398,29 +391,29 @@ export const predefinedTemplateVariables: Template[] = [
   {...interval},
 ]
 
-export const thresholdsListColors: ColorNumber[] = [
+export const thresholdsListColors: Color[] = [
   {
     type: 'text',
     hex: '#00C9FF',
     id: 'base',
     name: 'laser',
-    value: -1000000000000000000,
+    value: '-1000000000000000000',
   },
 ]
 
-export const gaugeColors: ColorNumber[] = [
+export const gaugeColors: Color[] = [
   {
     type: 'min',
     hex: '#00C9FF',
     id: '0',
     name: 'laser',
-    value: 0,
+    value: '0',
   },
   {
     type: 'max',
     hex: '#9394FF',
     id: '1',
     name: 'comet',
-    value: 100,
+    value: '100',
   },
 ]

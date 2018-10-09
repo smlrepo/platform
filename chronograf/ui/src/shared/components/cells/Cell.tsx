@@ -11,8 +11,8 @@ import ViewComponent from 'src/shared/components/cells/View'
 import {getView} from 'src/dashboards/apis/v2/view'
 
 // Types
-import {CellQuery, RemoteDataState, Template, TimeRange} from 'src/types'
-import {Cell, View, ViewShape} from 'src/types/v2'
+import {DashboardQuery, RemoteDataState, Template, TimeRange} from 'src/types'
+import {Cell, View} from 'src/types/v2'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -70,7 +70,7 @@ export default class CellComponent extends Component<Props, State> {
     )
   }
 
-  private get queries(): CellQuery[] {
+  private get queries(): DashboardQuery[] {
     const {view} = this.state
     return _.get(view, ['properties.queries'], [])
   }
@@ -89,10 +89,6 @@ export default class CellComponent extends Component<Props, State> {
       return null
     }
 
-    if (view.properties.shape === ViewShape.Empty) {
-      return this.emptyGraph
-    }
-
     return (
       <ViewComponent
         view={view}
@@ -101,20 +97,8 @@ export default class CellComponent extends Component<Props, State> {
         timeRange={timeRange}
         autoRefresh={autoRefresh}
         manualRefresh={manualRefresh}
+        onSummonOverlay={this.handleSummonOverlay}
       />
-    )
-  }
-
-  private get emptyGraph(): JSX.Element {
-    return (
-      <div className="graph-empty">
-        <button
-          className="no-query--button btn btn-md btn-primary"
-          onClick={this.handleSummonOverlay}
-        >
-          <span className="icon plus" /> Add Data
-        </button>
-      </div>
     )
   }
 

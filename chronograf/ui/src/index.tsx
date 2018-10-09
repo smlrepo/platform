@@ -14,16 +14,20 @@ import {loadLocalStorage} from 'src/localStorage'
 import {getRootNode} from 'src/utils/nodes'
 import {getBasepath} from 'src/utils/basepath'
 
+// Components
 import App from 'src/App'
 import CheckSources from 'src/CheckSources'
-import {StatusPage} from 'src/status'
+import Setup from 'src/Setup'
+import Signin from 'src/Signin'
 import {DashboardsPage, DashboardPage} from 'src/dashboards'
 import {SourcePage, ManageSources} from 'src/sources'
 import {FluxPage} from 'src/flux'
+import {UserPage} from 'src/user'
+import {LogsPage} from 'src/logs'
 import NotFound from 'src/shared/components/NotFound'
 
+// Actions
 import {getLinksAsync} from 'src/shared/actions/links'
-
 import {disablePresentationMode} from 'src/shared/actions/app'
 import {errorThrown} from 'src/shared/actions/errors'
 import {notify} from 'src/shared/actions/notifications'
@@ -97,16 +101,27 @@ class Root extends PureComponent<{}, State> {
     return this.state.ready ? (
       <Provider store={store}>
         <Router history={history}>
-          <Route component={App}>
-            <Route path="/" component={CheckSources}>
-              <Route path="dashboards/:dashboardID" component={DashboardPage} />
-              <Route path="sources/new" component={SourcePage} />
-              <Route path="dashboards" component={DashboardsPage} />
-              <Route path="status" component={StatusPage} />
-              <Route path="manage-sources" component={ManageSources} />
-              <Route path="manage-sources/new" component={SourcePage} />
-              <Route path="manage-sources/:id/edit" component={SourcePage} />
-              <Route path="delorean" component={FluxPage} />
+          <Route component={Setup}>
+            <Route component={Signin}>
+              <Route component={App}>
+                <Route path="/" component={CheckSources}>
+                  <Route
+                    path="dashboards/:dashboardID"
+                    component={DashboardPage}
+                  />
+                  <Route path="sources/new" component={SourcePage} />
+                  <Route path="dashboards" component={DashboardsPage} />
+                  <Route path="manage-sources" component={ManageSources} />
+                  <Route path="manage-sources/new" component={SourcePage} />
+                  <Route
+                    path="manage-sources/:id/edit"
+                    component={SourcePage}
+                  />
+                  <Route path="delorean" component={FluxPage} />
+                  <Route path="user/:tab" component={UserPage} />
+                  <Route path="logs" component={LogsPage} />
+                </Route>
+              </Route>
             </Route>
           </Route>
           <Route path="*" component={NotFound} />

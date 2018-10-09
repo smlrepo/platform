@@ -98,6 +98,11 @@ func (c *Client) initialize(ctx context.Context) error {
 			return err
 		}
 
+		// Always create Onboarding bucket.
+		if err := c.initializeOnboarding(ctx, tx); err != nil {
+			return err
+		}
+
 		// Always create Source bucket.
 		if err := c.initializeSources(ctx, tx); err != nil {
 			return err
@@ -115,6 +120,16 @@ func (c *Client) initialize(ctx context.Context) error {
 
 		// Always create Scraper bucket.
 		if err := c.initializeScraperTargets(ctx, tx); err != nil {
+			return err
+		}
+
+		// Always create UserResourceMapping bucket.
+		if err := c.initializeUserResourceMappings(ctx, tx); err != nil {
+			return err
+		}
+
+		// Always create Session bucket.
+		if err := c.initializeSessions(ctx, tx); err != nil {
 			return err
 		}
 

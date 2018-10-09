@@ -1,5 +1,4 @@
-import {QueryConfig} from 'src/types'
-import {ColorString} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 export interface Axis {
   label: string
@@ -36,16 +35,15 @@ export interface Axes {
   y2?: Axis
 }
 
-interface CellLinks {
-  self: string
+export enum InfluxLanguages {
+  InfluxQL = 'influxql',
+  Flux = 'flux',
 }
 
-// corresponds to DashboardQuery on the backend
-export interface CellQuery {
-  query: string
-  queryConfig: QueryConfig
+export interface DashboardQuery {
+  text: string
+  type: InfluxLanguages
   source: string
-  text?: string // doesn't come from server
 }
 
 export interface Legend {
@@ -58,56 +56,175 @@ export interface DecimalPlaces {
   digits: number
 }
 
+export interface MarkDownProperties {
+  type: ViewType.Markdown
+  text: string
+}
+
 export interface View {
   id: string
   name: string
-  properties: V1View
+  properties: ViewProperties
+  links?: ViewLinks
 }
 
-export interface V1View {
-  type: ViewType
-  queries: CellQuery[]
-  shape: ViewShape
+export interface ViewLinks {
+  self: string
+}
+
+export type RefreshingViewProperties =
+  | LineView
+  | StepPlotView
+  | StackedView
+  | BarChartView
+  | LinePlusSingleStatView
+  | SingleStatView
+  | TableView
+  | GaugeView
+
+export type ViewProperties =
+  | RefreshingViewProperties
+  | MarkdownView
+  | LogViewerView
+  | EmptyView
+
+export interface EmptyView {
+  type: ViewShape.Empty
+  shape: ViewShape.Empty
+}
+
+export interface LineView {
+  type: ViewType.Line
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
   axes: Axes
-  colors: ColorString[]
+  colors: Color[]
+  legend: Legend
+}
+
+export interface StackedView {
+  type: ViewType.Stacked
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface StepPlotView {
+  type: ViewType.StepPlot
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface BarChartView {
+  type: ViewType.Bar
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+}
+
+export interface LinePlusSingleStatView {
+  type: ViewType.LinePlusSingleStat
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  axes: Axes
+  colors: Color[]
+  legend: Legend
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface SingleStatView {
+  type: ViewType.SingleStat
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface GaugeView {
+  type: ViewType.Gauge
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
+  prefix: string
+  suffix: string
+  decimalPlaces: DecimalPlaces
+}
+
+export interface TableView {
+  type: ViewType.Table
+  queries: DashboardQuery[]
+  shape: ViewShape.ChronografV2
+  colors: Color[]
   tableOptions: TableOptions
   fieldOptions: FieldOption[]
-  timeFormat: string
   decimalPlaces: DecimalPlaces
-  links: CellLinks
-  legend: Legend
-  isWidget?: boolean
-  inView: boolean
+  timeFormat: string
+}
+
+export interface MarkdownView {
+  type: ViewType.Markdown
+  shape: ViewShape.ChronografV2
+  text: string
+}
+
+export interface LogViewerView {
+  type: ViewType.LogViewer
+  shape: ViewShape.ChronografV2
+  columns: LogViewerColumn[]
+}
+
+export interface LogViewerColumn {
+  name: string
+  position: number
+  settings: LogViewerColumnSetting[]
+}
+
+export interface LogViewerColumnSetting {
+  type: string
+  value: string
+  name?: string
 }
 
 export enum ViewShape {
-  ChronografV1 = 'chronografV1',
+  ChronografV2 = 'chronograf-v2',
   Empty = 'empty',
 }
 
 export enum ViewType {
-  Line = 'line',
-  Stacked = 'line-stacked',
-  StepPlot = 'line-stepplot',
   Bar = 'bar',
+  Line = 'line',
+  Stacked = 'stacked',
+  StepPlot = 'step-plot',
   LinePlusSingleStat = 'line-plus-single-stat',
   SingleStat = 'single-stat',
   Gauge = 'gauge',
   Table = 'table',
-  Alerts = 'alerts',
-  News = 'news',
-  Guide = 'guide',
+  Markdown = 'markdown',
+  LogViewer = 'log-viewer',
 }
 
 interface DashboardLinks {
   self: string
   cells: string
+  copy: string
 }
 
 export interface Dashboard {
   id: string
   cells: Cell[]
   name: string
+  default: boolean
   links: DashboardLinks
   meta?: {[x: string]: any}
 }

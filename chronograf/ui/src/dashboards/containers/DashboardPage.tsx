@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 
 // Components
+import {Page} from 'src/page_layout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
@@ -78,9 +79,9 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   notify: NotificationsActions.PublishNotificationActionCreator
   selectedCell: Cell
   thresholdsListType: string
-  thresholdsListColors: ColorsModels.ColorNumber[]
-  gaugeColors: ColorsModels.ColorNumber[]
-  lineColors: ColorsModels.ColorString[]
+  thresholdsListColors: ColorsModels.Color[]
+  gaugeColors: ColorsModels.Color[]
+  lineColors: ColorsModels.Color[]
   addCell: typeof dashboardActions.addCellAsync
   deleteCell: typeof dashboardActions.deleteCellAsync
   copyCell: typeof dashboardActions.copyDashboardCellAsync
@@ -161,7 +162,7 @@ class DashboardPage extends Component<Props, State> {
     const {dashboardLinks} = this.state
 
     return (
-      <div className="page dashboard-page">
+      <Page>
         <DashboardHeader
           dashboard={dashboard}
           timeRange={timeRange}
@@ -194,7 +195,7 @@ class DashboardPage extends Component<Props, State> {
             onDeleteCell={this.handleDeleteDashboardCell}
           />
         )}
-      </div>
+      </Page>
     )
   }
 
@@ -364,20 +365,12 @@ const mstp = (state, {params: {dashboardID}}) => {
     },
     sources,
     ranges,
-    cellEditorOverlay: {
-      cell,
-      thresholdsListType,
-      thresholdsListColors,
-      gaugeColors,
-      lineColors,
-    },
     dashboards,
   } = state
 
   const timeRange =
     ranges.find(r => r.dashboardID === dashboardID) || defaultTimeRange
 
-  const selectedCell = cell
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
   return {
@@ -389,11 +382,6 @@ const mstp = (state, {params: {dashboardID}}) => {
     autoRefresh,
     inPresentationMode,
     showTemplateControlBar,
-    selectedCell,
-    thresholdsListType,
-    thresholdsListColors,
-    gaugeColors,
-    lineColors,
   }
 }
 

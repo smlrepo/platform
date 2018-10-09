@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
@@ -13,8 +12,6 @@ import (
 	"runtime"
 	"syscall"
 	"time"
-
-	"go.uber.org/zap"
 
 	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
@@ -30,15 +27,18 @@ import (
 	_ "github.com/influxdata/platform/query/builtin"
 	pcontrol "github.com/influxdata/platform/query/control"
 	"github.com/influxdata/platform/source"
+	"github.com/influxdata/platform/storage"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
-	pzap "github.com/influxdata/platform/zap"
+	_ "github.com/influxdata/platform/tsdb/tsi1"
+	_ "github.com/influxdata/platform/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -56,7 +56,9 @@ var (
 	httpBindAddress   string
 	authorizationPath string
 	boltPath          string
-	walPath           string
+	natsPath          string
+	developerMode     bool
+	enginePath        string
 )
 
 func influxDir() (string, error) {
@@ -88,7 +90,7 @@ func init() {
 		httpBindAddress = h
 	}
 
-	platformCmd.Flags().StringVar(&authorizationPath, "authorizationPath", "", "path to a bootstrap token")
+	platformCmd.Flags().StringVar(&authorizationPath, "authorization-path", "", "path to a bootstrap token")
 	viper.BindEnv("TOKEN_PATH")
 	if h := viper.GetString("TOKEN_PATH"); h != "" {
 		authorizationPath = h
@@ -100,16 +102,29 @@ func init() {
 		boltPath = h
 	}
 
+	platformCmd.Flags().BoolVar(&developerMode, "developer-mode", false, "serve assets from the local filesystem in developer mode")
+	viper.BindEnv("DEV_MODE")
+	if h := viper.GetBool("DEV_MODE"); h {
+		developerMode = h
+	}
+
 	dir, err := influxDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
 		os.Exit(1)
 	}
 
-	platformCmd.Flags().StringVar(&walPath, "wal-path", filepath.Join(dir, "wal"), "path to persistent WAL files")
-	viper.BindEnv("WAL_PATH")
-	if h := viper.GetString("WAL_PATH"); h != "" {
-		walPath = h
+	// TODO(edd): do we need NATS for anything?
+	platformCmd.Flags().StringVar(&natsPath, "nats-path", filepath.Join(dir, "nats"), "path to persistent NATS files")
+	viper.BindEnv("NATS_PATH")
+	if h := viper.GetString("NATS_PATH"); h != "" {
+		natsPath = h
+	}
+
+	platformCmd.Flags().StringVar(&enginePath, "engine-path", filepath.Join(dir, "engine"), "path to persistent engine files")
+	viper.BindEnv("ENGINE_PATH")
+	if h := viper.GetString("ENGINE_PATH"); h != "" {
+		enginePath = h
 	}
 }
 
@@ -157,14 +172,19 @@ func platformF(cmd *cobra.Command, args []string) {
 		userSvc = c
 	}
 
+	var userResourceSvc platform.UserResourceMappingService
+	{
+		userResourceSvc = c
+	}
+
 	var dashboardSvc platform.DashboardService
 	{
 		dashboardSvc = c
 	}
 
-	var cellSvc platform.ViewService
+	var viewSvc platform.ViewService
 	{
-		cellSvc = c
+		viewSvc = c
 	}
 
 	var sourceSvc platform.SourceService
@@ -175,6 +195,50 @@ func platformF(cmd *cobra.Command, args []string) {
 	var macroSvc platform.MacroService
 	{
 		macroSvc = c
+	}
+
+	var basicAuthSvc platform.BasicAuthService
+	{
+		basicAuthSvc = c
+	}
+
+	var sessionSvc platform.SessionService
+	{
+		sessionSvc = c
+	}
+
+	var onboardingSvc platform.OnboardingService = c
+
+	// TODO(jeff): this block is hacky support for a storage engine. it is not intended to
+	// be a long term solution.
+	var storageQueryService query.ProxyQueryService
+	var pointsWriter storage.PointsWriter
+	{
+		config := storage.NewConfig()
+		config.EngineOptions.WALEnabled = true // Enable a disk-based WAL.
+		config.EngineOptions.Config = config.Config
+
+		engine := storage.NewEngine(enginePath, config)
+		engine.WithLogger(logger)
+
+		if err := engine.Open(); err != nil {
+			logger.Error("failed to open engine", zap.Error(err))
+			os.Exit(1)
+		}
+
+		pointsWriter = engine
+		storageQueryService = query.ProxyQueryServiceBridge{
+			QueryService: query.QueryServiceBridge{
+				AsyncQueryService: &queryAdapter{
+					Controller: NewController(
+						&store{engine: engine},
+						query.FromBucketService(c),
+						query.FromOrganizationService(c),
+						logger.With(zap.String("service", "storage")),
+					),
+				},
+			},
+		}
 	}
 
 	var queryService query.QueryService
@@ -203,6 +267,7 @@ func platformF(cmd *cobra.Command, args []string) {
 
 		// TODO(lh): Replace NopLogWriter with real log writer
 		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix())
+		scheduler.Start(context.Background())
 
 		// TODO(lh): Replace NopLogReader with real log reader
 		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
@@ -224,7 +289,7 @@ func platformF(cmd *cobra.Command, args []string) {
 	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
 
 	// NATS streaming server
-	natsServer := nats.NewServer(nats.Config{FilestoreDir: walPath})
+	natsServer := nats.NewServer(nats.Config{FilestoreDir: natsPath})
 	if err := natsServer.Open(); err != nil {
 		logger.Error("failed to start nats streaming server", zap.Error(err))
 		os.Exit(1)
@@ -243,11 +308,6 @@ func platformF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := subscriber.Subscribe(IngressSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
-		logger.Error("failed to create nats subscriber", zap.Error(err))
-		os.Exit(1)
-	}
-
 	scraperScheduler, err := gather.NewScheduler(10, logger, scraperTargetSvc, publisher, subscriber, 0, 0)
 	if err != nil {
 		logger.Error("failed to create scraper subscriber", zap.Error(err))
@@ -261,77 +321,32 @@ func platformF(cmd *cobra.Command, args []string) {
 		Addr: httpBindAddress,
 	}
 
+	handlerConfig := &http.APIBackend{
+		Logger:                     logger,
+		NewBucketService:           source.NewBucketService,
+		NewQueryService:            source.NewQueryService,
+		PointsWriter:               pointsWriter,
+		AuthorizationService:       authSvc,
+		BucketService:              bucketSvc,
+		SessionService:             sessionSvc,
+		UserService:                userSvc,
+		OrganizationService:        orgSvc,
+		UserResourceMappingService: userResourceSvc,
+		DashboardService:           dashboardSvc,
+		ViewService:                viewSvc,
+		SourceService:              sourceSvc,
+		MacroService:               macroSvc,
+		BasicAuthService:           basicAuthSvc,
+		OnboardingService:          onboardingSvc,
+		ProxyQueryService:          storageQueryService,
+		TaskService:                taskSvc,
+		ScraperTargetStoreService:  scraperTargetSvc,
+		ChronografService:          chronografSvc,
+	}
+
 	// HTTP server
 	go func() {
-		bucketHandler := http.NewBucketHandler()
-		bucketHandler.BucketService = bucketSvc
-
-		orgHandler := http.NewOrgHandler()
-		orgHandler.OrganizationService = orgSvc
-		orgHandler.BucketService = bucketSvc
-
-		userHandler := http.NewUserHandler()
-		userHandler.UserService = userSvc
-
-		dashboardHandler := http.NewDashboardHandler()
-		dashboardHandler.DashboardService = dashboardSvc
-
-		cellHandler := http.NewViewHandler()
-		cellHandler.ViewService = cellSvc
-
-		macroHandler := http.NewMacroHandler()
-		macroHandler.MacroService = macroSvc
-
-		authHandler := http.NewAuthorizationHandler()
-		authHandler.AuthorizationService = authSvc
-		authHandler.Logger = logger.With(zap.String("handler", "auth"))
-
-		assetHandler := http.NewAssetHandler()
-		fluxLangHandler := http.NewFluxLangHandler()
-
-		sourceHandler := http.NewSourceHandler()
-		sourceHandler.SourceService = sourceSvc
-		sourceHandler.NewBucketService = source.NewBucketService
-		sourceHandler.NewQueryService = source.NewQueryService
-
-		taskHandler := http.NewTaskHandler(logger)
-		taskHandler.TaskService = taskSvc
-
-		publishFn := func(r io.Reader) error {
-			return publisher.Publish(IngressSubject, r)
-		}
-
-		writeHandler := http.NewWriteHandler(publishFn)
-		writeHandler.AuthorizationService = authSvc
-		writeHandler.OrganizationService = orgSvc
-		writeHandler.BucketService = bucketSvc
-		writeHandler.Logger = logger.With(zap.String("handler", "write"))
-
-		queryHandler := http.NewFluxHandler()
-		queryHandler.AuthorizationService = authSvc
-		queryHandler.OrganizationService = orgSvc
-		queryHandler.Logger = logger.With(zap.String("handler", "query"))
-		queryHandler.ProxyQueryService = pzap.NewProxyQueryService(queryHandler.Logger)
-
-		// TODO(desa): what to do about idpe.
-		chronografHandler := http.NewChronografHandler(chronografSvc)
-
-		platformHandler := &http.PlatformHandler{
-			BucketHandler:        bucketHandler,
-			OrgHandler:           orgHandler,
-			UserHandler:          userHandler,
-			AuthorizationHandler: authHandler,
-			DashboardHandler:     dashboardHandler,
-			AssetHandler:         assetHandler,
-			FluxLangHandler:      fluxLangHandler,
-			ChronografHandler:    chronografHandler,
-			SourceHandler:        sourceHandler,
-			TaskHandler:          taskHandler,
-			ViewHandler:          cellHandler,
-			MacroHandler:         macroHandler,
-			QueryHandler:         queryHandler,
-			WriteHandler:         writeHandler,
-		}
+		platformHandler := http.NewPlatformHandler(handlerConfig)
 		reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
 		h := http.NewHandlerFromRegistry("platform", reg)
@@ -348,9 +363,9 @@ func platformF(cmd *cobra.Command, args []string) {
 		logger.Fatal("unable to start platform", zap.Error(err))
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	httpServer.Shutdown(ctx)
+	httpServer.Shutdown(cctx)
 }
 
 // Execute executes the idped command

@@ -4,12 +4,15 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/influxdata/platform"
 	pcontext "github.com/influxdata/platform/context"
 	"github.com/influxdata/platform/kit/errors"
+	"github.com/influxdata/platform/models"
+	"github.com/influxdata/platform/storage"
+	"github.com/influxdata/platform/tsdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
@@ -24,18 +27,18 @@ type WriteHandler struct {
 	BucketService        platform.BucketService
 	OrganizationService  platform.OrganizationService
 
-	Publish func(io.Reader) error
+	PointsWriter storage.PointsWriter
 }
 
-// NewWriteHandler creates a new handler at /v2/write to receive line protocol.
-func NewWriteHandler(publishFn func(io.Reader) error) *WriteHandler {
+// NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
+func NewWriteHandler(writer storage.PointsWriter) *WriteHandler {
 	h := &WriteHandler{
-		Router:  httprouter.New(),
-		Logger:  zap.NewNop(),
-		Publish: publishFn,
+		Router:       httprouter.New(),
+		Logger:       zap.NewNop(),
+		PointsWriter: writer,
 	}
 
-	h.HandlerFunc("POST", "/v2/write", h.handleWrite)
+	h.HandlerFunc("POST", "/api/v2/write", h.handleWrite)
 	return h
 }
 
@@ -54,15 +57,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		defer in.Close()
 	}
 
-	tok, err := pcontext.GetToken(ctx)
+	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	auth, err := h.AuthorizationService.FindAuthorizationByID(ctx, a.Identifier())
 	if err != nil {
-		EncodeError(ctx, errors.Wrap(err, "invalid token", errors.InvalidData), w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
@@ -125,12 +128,36 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	if !platform.Allowed(platform.WriteBucketPermission(bucket.ID), auth) {
+	if !auth.Allowed(platform.WriteBucketPermission(bucket.ID)) {
 		EncodeError(ctx, errors.Forbiddenf("insufficient permissions for write"), w)
 		return
 	}
 
-	if err := h.Publish(in); err != nil {
+	// TODO(jeff): we should be publishing with the org and bucket instead of
+	// parsing, rewriting, and publishing, but the interface isn't quite there yet.
+	// be sure to remove this when it is there!
+	data, err := ioutil.ReadAll(in)
+	if err != nil {
+		logger.Info("Error reading body", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	points, err := models.ParsePoints(data)
+	if err != nil {
+		logger.Info("Error parsing points", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
+	if err != nil {
+		logger.Info("Error exploding points", zap.Error(err))
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := h.PointsWriter.WritePoints(exploded); err != nil {
 		EncodeError(ctx, errors.BadRequestError(err.Error()), w)
 		return
 	}

@@ -7,7 +7,7 @@ node_modules: yarn.lock
 ifndef YARN
 	$(error Please install yarn 0.19.1+)
 else
-	yarn --no-progress --no-emoji
+	yarn --no-progress --emoji false
 endif
 
 build: node_modules $(UISOURCES)
@@ -16,6 +16,14 @@ ifndef YARN
 else
 	yarn run build
 endif
+
+lint: node_modules $(UISOURCES)
+ifndef YARN
+	$(error Please install yarn 0.19.1+)
+else
+	yarn run tsc
+endif
+
 
 test:
 ifndef YARN
@@ -31,5 +39,7 @@ else
 	yarn run clean
 endif
 
+run:
+	yarn run start
 
-.PHONY: all clean test
+.PHONY: all clean test run lint

@@ -2,23 +2,41 @@ import {Action, ActionTypes} from 'src/shared/actions/links'
 import {Links} from 'src/types/v2/links'
 
 const initialState: Links = {
+  auths: '',
+  buckets: '',
   dashboards: '',
-  sources: '',
   external: {
     statusFeed: '',
   },
-  flux: {
-    ast: '',
+  query: {
     self: '',
+    ast: '',
+    spec: '',
     suggestions: '',
   },
+  orgs: '',
+  setup: '',
+  signin: '',
+  signout: '',
+  sources: '',
+  system: {debug: '', health: '', metrics: ''},
+  tasks: '',
+  users: '',
+  write: '',
+  macros: '',
+  defaultDashboard: '',
 }
 
 const linksReducer = (state = initialState, action: Action): Links => {
   switch (action.type) {
     case ActionTypes.LinksGetCompleted: {
       const {links} = action.payload
-      return {...links}
+      return {...links, defaultDashboard: '/v2/dashboards/029d13fda9c5b000'}
+    }
+
+    case ActionTypes.SetDefaultDashboardLink: {
+      const {defaultDashboard} = action.payload
+      return {...state, defaultDashboard}
     }
   }
 

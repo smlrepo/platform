@@ -4,11 +4,41 @@ import {
   Template,
   Dashboard,
   Cell,
-  CellType,
   SourceLinks,
   TemplateType,
   TemplateValueType,
 } from 'src/types'
+import {Links} from 'src/types/v2/links'
+
+export const links: Links = {
+  auths: '/api/v2/authorizations',
+  buckets: '/api/v2/buckets',
+  dashboards: '/api/v2/dashboards',
+  external: {
+    statusFeed: 'https://www.influxdata.com/feed/json',
+  },
+  query: {
+    self: '/api/v2/query',
+    ast: '/api/v2/query/ast',
+    spec: '/api/v2/query/spec',
+    suggestions: '/api/v2/query/suggestions',
+  },
+  orgs: '/api/v2/orgs',
+  setup: '/api/v2/setup',
+  signin: '/api/v2/signin',
+  signout: '/api/v2/signout',
+  sources: '/api/v2/sources',
+  system: {
+    debug: '/debug/pprof',
+    health: '/healthz',
+    metrics: '/metrics',
+  },
+  tasks: '/api/v2/tasks',
+  users: '/api/v2/users',
+  write: '/api/v2/write',
+  macros: '/api/v2/macros',
+  defaultDashboard: '/v2/dashboards/029d13fda9c5b000',
+}
 
 export const queryConfig = {
   queries: [
@@ -153,11 +183,15 @@ export const template: Template = {
 }
 
 export const dashboard: Dashboard = {
-  id: 1,
+  id: '1',
   cells: [],
   name: 'd1',
-  templates: [],
-  organization: 'thebestorg',
+  default: false,
+  links: {
+    self: 'self/link',
+    copy: 'copy/link',
+    cells: 'cells/link',
+  },
 }
 
 export const cell: Cell = {
@@ -165,48 +199,11 @@ export const cell: Cell = {
   y: 0,
   w: 4,
   h: 4,
-  i: '0246e457-916b-43e3-be99-211c4cbc03e8',
-  name: 'Apache Bytes/Second',
-  queries: [],
-  axes: {
-    x: {
-      bounds: ['', ''],
-      label: '',
-      prefix: '',
-      suffix: '',
-      base: '',
-      scale: '',
-    },
-    y: {
-      bounds: ['', ''],
-      label: '',
-      prefix: '',
-      suffix: '',
-      base: '',
-      scale: '',
-    },
-  },
-  type: CellType.Line,
-  colors: [],
-  tableOptions: {
-    verticalTimeAxis: true,
-    sortBy: {
-      internalName: '',
-      displayName: '',
-      visible: true,
-    },
-    fixFirstColumn: true,
-  },
-  fieldOptions: [],
-  timeFormat: '',
-  decimalPlaces: {
-    isEnforced: false,
-    digits: 1,
-  },
+  viewID: 'view-1',
+  id: '0246e457-916b-43e3-be99-211c4cbc03e8',
   links: {
-    self:
-      '/chronograf/v1/dashboards/10/cells/8b3b7897-49b1-422c-9443-e9b778bcbf12',
+    self: 'self/link',
+    copy: 'copy/link',
+    view: 'view/link',
   },
-  legend: {},
-  inView: true,
 }

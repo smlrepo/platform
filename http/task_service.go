@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/influxdata/platform"
+	pcontext "github.com/influxdata/platform/context"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
@@ -15,8 +16,11 @@ import (
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
-	logger      *zap.Logger
-	TaskService platform.TaskService
+	logger *zap.Logger
+
+	TaskService          platform.TaskService
+	AuthorizationService platform.AuthorizationService
+	OrganizationService  platform.OrganizationService
 }
 
 // NewTaskHandler returns a new instance of TaskHandler.
@@ -26,19 +30,19 @@ func NewTaskHandler(logger *zap.Logger) *TaskHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("GET", "/v1/tasks", h.handleGetTasks)
-	h.HandlerFunc("POST", "/v1/tasks", h.handlePostTask)
+	h.HandlerFunc("GET", "/api/v2/tasks", h.handleGetTasks)
+	h.HandlerFunc("POST", "/api/v2/tasks", h.handlePostTask)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid", h.handleGetTask)
-	h.HandlerFunc("PATCH", "/v1/tasks/:tid", h.handleUpdateTask)
-	h.HandlerFunc("DELETE", "/v1/tasks/:tid", h.handleDeleteTask)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid", h.handleGetTask)
+	h.HandlerFunc("PATCH", "/api/v2/tasks/:tid", h.handleUpdateTask)
+	h.HandlerFunc("DELETE", "/api/v2/tasks/:tid", h.handleDeleteTask)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid/logs", h.handleGetLogs)
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/logs", h.handleGetLogs)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs/:rid/logs", h.handleGetLogs)
 
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs", h.handleGetRuns)
-	h.HandlerFunc("GET", "/v1/tasks/:tid/runs/:rid", h.handleGetRun)
-	h.HandlerFunc("POST", "/v1/tasks/:tid/runs/:rid/retry", h.handleRetryRun)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs", h.handleGetRuns)
+	h.HandlerFunc("GET", "/api/v2/tasks/:tid/runs/:rid", h.handleGetRun)
+	h.HandlerFunc("POST", "/api/v2/tasks/:tid/runs/:rid/retry", h.handleRetryRun)
 
 	return h
 }
@@ -315,7 +319,20 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest
 func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeGetRunsRequest(ctx, r)
+	tok, err := GetToken(r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	auth, err := h.AuthorizationService.FindAuthorizationByToken(ctx, tok)
+	if err != nil {
+		EncodeError(ctx, kerrors.Wrap(err, "invalid token", kerrors.InvalidData), w)
+		return
+	}
+	ctx = pcontext.SetAuthorization(ctx, auth)
+
+	req, err := decodeGetRunsRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -337,7 +354,7 @@ type getRunsRequest struct {
 	filter platform.RunFilter
 }
 
-func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest, error) {
+func decodeGetRunsRequest(ctx context.Context, r *http.Request, orgs platform.OrganizationService) (*getRunsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("tid")
 	if id == "" {
@@ -351,6 +368,15 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 	}
 
 	qp := r.URL.Query()
+
+	if orgName := qp.Get("org"); orgName != "" {
+		o, err := orgs.FindOrganization(ctx, platform.OrganizationFilter{Name: &orgName})
+		if err != nil {
+			return nil, err
+		}
+
+		req.filter.Org = &o.ID
+	}
 
 	if id := qp.Get("after"); id != "" {
 		req.filter.After = &platform.ID{}

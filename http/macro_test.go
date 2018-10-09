@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/inmem"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/influxdata/platform/mock"
+	platformtesting "github.com/influxdata/platform/testing"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -38,7 +40,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 								ID:       platform.ID("0"),
 								Name:     "macro-a",
 								Selected: []string{"b"},
-								Arguments: platform.MacroArguments{
+								Arguments: &platform.MacroArguments{
 									Type:   "constant",
 									Values: platform.MacroConstantValues{"a", "b"},
 								},
@@ -47,7 +49,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 								ID:       platform.ID("1"),
 								Name:     "macro-b",
 								Selected: []string{"c"},
-								Arguments: platform.MacroArguments{
+								Arguments: &platform.MacroArguments{
 									Type:   "map",
 									Values: platform.MacroMapValues{"a": "b", "c": "d"},
 								},
@@ -59,7 +61,7 @@ func TestMacroService_handleGetMacros(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"macros":[{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/v2/macros/30"}},{"id":"31","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/v2/macros/31"}}],"links":{"self":"/v2/macros"}}
+				body: `{"macros":[{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/30"}},{"id":"31","name":"macro-b","selected":["c"],"arguments":{"type":"map","values":{"a":"b","c":"d"}},"links":{"self":"/api/v2/macros/31"}}],"links":{"self":"/api/v2/macros"}}
 `,
 			},
 		},
@@ -124,7 +126,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 							ID:       platform.ID("0"),
 							Name:     "macro-a",
 							Selected: []string{"b"},
-							Arguments: platform.MacroArguments{
+							Arguments: &platform.MacroArguments{
 								Type:   "constant",
 								Values: platform.MacroConstantValues{"a", "b"},
 							},
@@ -135,7 +137,7 @@ func TestMacroService_handleGetMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/v2/macros/30"}}
+				body: `{"id":"30","name":"macro-a","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"links":{"self":"/api/v2/macros/30"}}
 `,
 			},
 		},
@@ -245,7 +247,7 @@ func TestMacroService_handlePostMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/v2/macros/30"}}
+				body: `{"id":"30","name":"my-great-macro","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"links":{"self":"/api/v2/macros/30"}}
 `,
 			},
 		},
@@ -344,7 +346,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 						return &platform.Macro{
 							ID:   platform.ID("0"),
 							Name: "new-name",
-							Arguments: platform.MacroArguments{
+							Arguments: &platform.MacroArguments{
 								Type:   "constant",
 								Values: platform.MacroConstantValues{},
 							},
@@ -360,7 +362,7 @@ func TestMacroService_handlePatchMacro(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"30","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/v2/macros/30"}}
+				body: `{"id":"30","name":"new-name","selected":[],"arguments":{"type":"constant","values":[]},"links":{"self":"/api/v2/macros/30"}}
 `,
 			},
 		},
@@ -494,4 +496,31 @@ func TestMacroService_handleDeleteMacro(t *testing.T) {
 			}
 		})
 	}
+}
+
+func initMacroService(f platformtesting.MacroFields, t *testing.T) (platform.MacroService, func()) {
+	t.Helper()
+	svc := inmem.NewService()
+	svc.IDGenerator = f.IDGenerator
+
+	ctx := context.Background()
+	for _, macro := range f.Macros {
+		if err := svc.ReplaceMacro(ctx, macro); err != nil {
+			t.Fatalf("failed to populate macros")
+		}
+	}
+
+	handler := NewMacroHandler()
+	handler.MacroService = svc
+	server := httptest.NewServer(handler)
+	client := MacroService{
+		Addr: server.URL,
+	}
+	done := server.Close
+
+	return &client, done
+}
+
+func TestMacroService(t *testing.T) {
+	platformtesting.MacroService(initMacroService, t)
 }

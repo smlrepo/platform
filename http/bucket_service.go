@@ -18,8 +18,18 @@ import (
 type BucketHandler struct {
 	*httprouter.Router
 
-	BucketService platform.BucketService
+	BucketService              platform.BucketService
+	UserResourceMappingService platform.UserResourceMappingService
 }
+
+const (
+	bucketsPath            = "/api/v2/buckets"
+	bucketsIDPath          = "/api/v2/buckets/:id"
+	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
+	bucketsIDMembersIDPath = "/api/v2/buckets/:id/members/:userID"
+	bucketsIDOwnersPath    = "/api/v2/buckets/:id/owners"
+	bucketsIDOwnersIDPath  = "/api/v2/buckets/:id/owners/:userID"
+)
 
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler() *BucketHandler {
@@ -27,26 +37,120 @@ func NewBucketHandler() *BucketHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/buckets", h.handlePostBucket)
-	h.HandlerFunc("GET", "/v1/buckets", h.handleGetBuckets)
-	h.HandlerFunc("GET", "/v1/buckets/:id", h.handleGetBucket)
-	h.HandlerFunc("PATCH", "/v1/buckets/:id", h.handlePatchBucket)
-	h.HandlerFunc("DELETE", "/v1/buckets/:id", h.handleDeleteBucket)
+	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)
+	h.HandlerFunc("GET", bucketsPath, h.handleGetBuckets)
+	h.HandlerFunc("GET", bucketsIDPath, h.handleGetBucket)
+	h.HandlerFunc("PATCH", bucketsIDPath, h.handlePatchBucket)
+	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
+
+	h.HandlerFunc("POST", bucketsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
 	return h
+}
+
+// bucket is used for serialization/deserialization with duration string syntax.
+type bucket struct {
+	ID                  platform.ID `json:"id,omitempty"`
+	OrganizationID      platform.ID `json:"organizationID,omitempty"`
+	Organization        string      `json:"organization,omitempty"`
+	Name                string      `json:"name"`
+	RetentionPolicyName string      `json:"rp,omitempty"` // This to support v1 sources
+	RetentionPeriod     string      `json:"retentionPeriod"`
+}
+
+func (b *bucket) toPlatform() (*platform.Bucket, error) {
+	if b == nil {
+		return nil, nil
+	}
+
+	d, err := ParseDuration(b.RetentionPeriod)
+	if err != nil {
+		return nil, err
+	}
+
+	return &platform.Bucket{
+		ID:                  b.ID,
+		OrganizationID:      b.OrganizationID,
+		Organization:        b.Organization,
+		Name:                b.Name,
+		RetentionPolicyName: b.RetentionPolicyName,
+		RetentionPeriod:     d,
+	}, nil
+}
+
+func newBucket(pb *platform.Bucket) *bucket {
+	if pb == nil {
+		return nil
+	}
+
+	return &bucket{
+		ID:                  pb.ID,
+		OrganizationID:      pb.OrganizationID,
+		Organization:        pb.Organization,
+		Name:                pb.Name,
+		RetentionPolicyName: pb.RetentionPolicyName,
+		RetentionPeriod:     FormatDuration(pb.RetentionPeriod),
+	}
+}
+
+// bucketUpdate is used for serialization/deserialization with duration string syntax.
+type bucketUpdate struct {
+	Name            *string `json:"name,omitempty"`
+	RetentionPeriod *string `json:"retentionPeriod,omitempty"`
+}
+
+func (b *bucketUpdate) toPlatform() (*platform.BucketUpdate, error) {
+	if b == nil {
+		return nil, nil
+	}
+
+	up := &platform.BucketUpdate{
+		Name: b.Name,
+	}
+	if b.RetentionPeriod != nil {
+		d, err := ParseDuration(*b.RetentionPeriod)
+		if err != nil {
+			return nil, err
+		}
+		up.RetentionPeriod = &d
+	}
+
+	return up, nil
+}
+
+func newBucketUpdate(pb *platform.BucketUpdate) *bucketUpdate {
+	if pb == nil {
+		return nil
+	}
+
+	up := &bucketUpdate{
+		Name: pb.Name,
+	}
+	if pb.RetentionPeriod != nil {
+		d := FormatDuration(*pb.RetentionPeriod)
+		up.RetentionPeriod = &d
+	}
+	return up
 }
 
 type bucketResponse struct {
 	Links map[string]string `json:"links"`
-	platform.Bucket
+	bucket
 }
 
 func newBucketResponse(b *platform.Bucket) *bucketResponse {
 	return &bucketResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v1/buckets/%s", b.ID),
-			"org":  fmt.Sprintf("/v1/orgs/%s", b.OrganizationID),
+			"self": fmt.Sprintf("/api/v2/buckets/%s", b.ID),
+			"org":  fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
 		},
-		Bucket: *b,
+		bucket: *newBucket(b),
 	}
 }
 
@@ -63,13 +167,13 @@ func newBucketsResponse(opts platform.FindOptions, f platform.BucketFilter, bs [
 	return &bucketsResponse{
 		// TODO(desa): update links to include paging and filter information
 		Links: map[string]string{
-			"self": "/v1/buckets",
+			"self": "/api/v2/buckets",
 		},
 		Buckets: rs,
 	}
 }
 
-// handlePostBucket is the HTTP handler for the POST /v1/buckets route.
+// handlePostBucket is the HTTP handler for the POST /api/v2/buckets route.
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -103,18 +207,24 @@ func (b postBucketRequest) Validate() error {
 }
 
 func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketRequest, error) {
-	b := &platform.Bucket{}
+	b := &bucket{}
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, err
 	}
 
-	req := &postBucketRequest{
-		Bucket: b,
+	pb, err := b.toPlatform()
+	if err != nil {
+		return nil, err
 	}
+
+	req := &postBucketRequest{
+		Bucket: pb,
+	}
+
 	return req, req.Validate()
 }
 
-// handleGetBucket is the HTTP handler for the GET /v1/buckets/:id route.
+// handleGetBucket is the HTTP handler for the GET /api/v2/buckets/:id route.
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -162,7 +272,7 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 	return req, nil
 }
 
-// handleDeleteBucket is the HTTP handler for the DELETE /v1/buckets/:id route.
+// handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -206,7 +316,7 @@ func decodeDeleteBucketRequest(ctx context.Context, r *http.Request) (*deleteBuc
 	return req, nil
 }
 
-// handleGetBuckets is the HTTP handler for the GET /v1/buckets route.
+// handleGetBuckets is the HTTP handler for the GET /api/v2/buckets route.
 func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -262,7 +372,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	return req, nil
 }
 
-// handlePatchBucket is the HTTP handler for the PATH /v1/buckets route.
+// handlePatchBucket is the HTTP handler for the PATH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -305,19 +415,24 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 		return nil, err
 	}
 
-	var upd platform.BucketUpdate
-	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
+	bu := &bucketUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(bu); err != nil {
+		return nil, err
+	}
+
+	upd, err := bu.toPlatform()
+	if err != nil {
 		return nil, err
 	}
 
 	return &patchBucketRequest{
-		Update:   upd,
+		Update:   *upd,
 		BucketID: i,
 	}, nil
 }
 
 const (
-	bucketPath = "/v1/buckets"
+	bucketPath = "/api/v2/buckets"
 )
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
@@ -350,13 +465,12 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 		return nil, err
 	}
 
-	var b platform.Bucket
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	return &b, nil
+	return br.toPlatform()
 }
 
 // FindBucket returns the first bucket that matches filter.
@@ -421,7 +535,12 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketF
 
 	buckets := make([]*platform.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		buckets = append(buckets, &b.Bucket)
+		pb, err := b.bucket.toPlatform()
+		if err != nil {
+			return nil, 0, err
+		}
+
+		buckets = append(buckets, pb)
 	}
 
 	return buckets, len(buckets), nil
@@ -434,7 +553,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	octets, err := json.Marshal(b)
+	octets, err := json.Marshal(newBucket(b))
 	if err != nil {
 		return err
 	}
@@ -459,10 +578,16 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 		return err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return err
 	}
 
+	pb, err := br.toPlatform()
+	if err != nil {
+		return err
+	}
+	*b = *pb
 	return nil
 }
 
@@ -474,7 +599,8 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	octets, err := json.Marshal(upd)
+	bu := newBucketUpdate(&upd)
+	octets, err := json.Marshal(bu)
 	if err != nil {
 		return nil, err
 	}
@@ -498,13 +624,12 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd pl
 		return nil, err
 	}
 
-	var b platform.Bucket
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var br bucketResponse
+	if err := json.NewDecoder(resp.Body).Decode(&br); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	return &b, nil
+	return br.toPlatform()
 }
 
 // DeleteBucket removes a bucket by ID.

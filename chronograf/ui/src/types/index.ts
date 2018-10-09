@@ -1,15 +1,6 @@
 import {LayoutCell, LayoutQuery} from './layouts'
 import {Service, NewService} from './services'
-import {Cell, CellQuery, Legend, Axes, Dashboard, CellType} from './dashboards'
-import {
-  Template,
-  TemplateQuery,
-  TemplateValue,
-  TemplateType,
-  TemplateValueType,
-  TemplateUpdate,
-  TemplateBuilderProps,
-} from './tempVars'
+import {Cell, DashboardQuery, Legend, Axes, Dashboard} from './v2/dashboards'
 import {
   GroupBy,
   Query,
@@ -32,32 +23,29 @@ import {
   SourceLinks,
   SourceAuthenticationMethod,
 } from './sources'
-import {DropdownAction, DropdownItem, Constructable} from './shared'
+import {DropdownAction, DropdownItem} from './shared'
 import {
   Notification,
   NotificationFunc,
   NotificationAction,
 } from './notifications'
-import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 import {
-  DygraphSeries,
-  DygraphValue,
-  DygraphAxis,
-  DygraphClass,
-  DygraphData,
-} from './dygraphs'
-import {JSONFeedData} from './status'
+  Template,
+  TemplateValue,
+  TemplateType,
+  TemplateValueType,
+} from 'src/types/tempVars'
+import {FluxTable, ScriptStatus, SchemaFilter, RemoteDataState} from './flux'
 import {AnnotationInterface} from './annotations'
 import {WriteDataMode} from './dataExplorer'
 
 export {
-  Constructable,
-  Template,
-  TemplateQuery,
+  TemplateType,
   TemplateValue,
+  TemplateValueType,
+  Template,
   Cell,
-  CellQuery,
-  CellType,
+  DashboardQuery,
   Legend,
   Status,
   Query,
@@ -79,11 +67,6 @@ export {
   DropdownAction,
   DropdownItem,
   TimeRange,
-  DygraphData,
-  DygraphSeries,
-  DygraphValue,
-  DygraphAxis,
-  DygraphClass,
   Notification,
   NotificationFunc,
   NotificationAction,
@@ -97,11 +80,6 @@ export {
   ScriptStatus,
   SchemaFilter,
   RemoteDataState,
-  JSONFeedData,
   AnnotationInterface,
-  TemplateType,
-  TemplateValueType,
-  TemplateUpdate,
-  TemplateBuilderProps,
   WriteDataMode,
 }

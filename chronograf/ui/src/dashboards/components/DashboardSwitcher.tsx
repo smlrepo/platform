@@ -4,12 +4,12 @@ import _ from 'lodash'
 import classnames from 'classnames'
 
 import OnClickOutside from 'src/shared/components/OnClickOutside'
-import FancyScrollbar from 'src/shared/components/FancyScrollbar'
+import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {DROPDOWN_MENU_MAX_HEIGHT} from 'src/shared/constants/index'
-import {DashboardSwitcherLinks} from 'src/types/dashboards'
+import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
 
 interface Props {
   dashboardLinks: DashboardSwitcherLinks

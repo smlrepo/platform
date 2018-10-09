@@ -3,14 +3,32 @@ import {Dispatch} from 'redux'
 import {getLinks as getLinksAJAX} from 'src/shared/apis/links'
 
 import {errorThrown} from 'src/shared/actions/errors'
+import {Links} from 'src/types/v2/links'
 
 export enum ActionTypes {
   LinksGetRequested = 'LINKS_GET_REQUESTED',
   LinksGetCompleted = 'LINKS_GET_COMPLETED',
   LinksGetFailed = 'LINKS_GET_FAILED',
+  SetDefaultDashboardLink = 'SET_DEFAULT_DASHBOARD_LINK',
 }
 
-export type Action = LinksGetCompletedAction
+export type Action = LinksGetCompletedAction | SetDefaultDashboardAction
+
+export interface SetDefaultDashboardAction {
+  type: ActionTypes.SetDefaultDashboardLink
+  payload: {
+    defaultDashboard: string
+  }
+}
+
+export const setDefaultDashboard = (
+  defaultDashboard: string
+): SetDefaultDashboardAction => ({
+  type: ActionTypes.SetDefaultDashboardLink,
+  payload: {
+    defaultDashboard,
+  },
+})
 
 export interface LinksGetRequestedAction {
   type: ActionTypes.LinksGetRequested
@@ -21,9 +39,9 @@ const linksGetRequested = (): LinksGetRequestedAction => ({
 
 export interface LinksGetCompletedAction {
   type: ActionTypes.LinksGetCompleted
-  payload: {links}
+  payload: {links: Links}
 }
-export const linksGetCompleted = (links): LinksGetCompletedAction => ({
+export const linksGetCompleted = (links: Links): LinksGetCompletedAction => ({
   type: ActionTypes.LinksGetCompleted,
   payload: {links},
 })

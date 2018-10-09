@@ -1,7 +1,6 @@
 // All copy for notifications should be stored here for easy editing
 // and ensuring stylistic consistency
 import {Notification} from 'src/types'
-import {TemplateUpdate} from 'src/types/tempVars'
 
 type NotificationExcludingMessage = Pick<
   Notification,
@@ -93,6 +92,31 @@ export const csvUploadFailed = (): Notification => ({
   ...defaultErrorNotification,
   message: 'Please upload a .csv file',
 })
+
+// Onboarding notifications
+export const SetupSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: 'Admin User details have been successfully set',
+}
+
+export const SetupError: Notification = {
+  ...defaultErrorNotification,
+  message: `Could not Setup Admin User at this time.`,
+}
+
+export const SetupNotAllowed: Notification = {
+  ...defaultErrorNotification,
+  message: `Defaults have already been set on this account.`,
+}
+
+export const SigninSuccessful: Notification = {
+  ...defaultSuccessNotification,
+  message: `YAY! You're good to go, RELOAD to continue`,
+}
+export const SigninError: Notification = {
+  ...defaultErrorNotification,
+  message: `OH Noes! Sign In did not work. :(`,
+}
 
 //  Hosts Page Notifications
 //  ----------------------------------------------------------------------------
@@ -459,6 +483,11 @@ export const dashboardCreateFailed = () => ({
   message: 'Failed to created dashboard.',
 })
 
+export const dashboardSetDefaultFailed = (name: string) => ({
+  ...defaultErrorNotification,
+  message: `Failed to set ${name} to default dashboard.`,
+})
+
 export const dashboardImported = (name: string): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
@@ -505,25 +534,6 @@ export const builderDisabled = (): Notification => ({
 
 //  Template Variables & URL Queries
 //  ----------------------------------------------------------------------------
-export const invalidTempVarValueInMetaQuery = (
-  tempVar: string,
-  errorMessage: string
-): Notification => ({
-  ...defaultErrorNotification,
-  icon: 'cube',
-  duration: 7500,
-  message: `Invalid query supplied for template variable ${tempVar}: ${errorMessage}`,
-})
-
-export const invalidTempVarValueInURLQuery = ({
-  key,
-  value,
-}: TemplateUpdate): Notification => ({
-  ...defaultErrorNotification,
-  icon: 'cube',
-  message: `Invalid URL query value of '${value}' supplied for template variable '${key}'.`,
-})
-
 export const invalidTimeRangeValueInURLQuery = (): Notification => ({
   ...defaultErrorNotification,
   icon: 'cube',
@@ -611,15 +621,21 @@ export const validateSuccess = (): Notification => ({
   message: 'No errors found. Happy Happy Joy Joy!',
 })
 
-export const copyToClipboardSuccess = (text: string): Notification => ({
+export const copyToClipboardSuccess = (
+  text: string,
+  title: string = ''
+): Notification => ({
   ...defaultSuccessNotification,
   icon: 'dash-h',
-  message: `'${text}' has been copied to clipboard.`,
+  message: `${title}'${text}' has been copied to clipboard.`,
 })
 
-export const copyToClipboardFailed = (text: string): Notification => ({
+export const copyToClipboardFailed = (
+  text: string,
+  title: string = ''
+): Notification => ({
   ...defaultErrorNotification,
-  message: `'${text}' was not copied to clipboard.`,
+  message: `${title}'${text}' was not copied to clipboard.`,
 })
 
 export const fluxNameAlreadyTaken = (fluxName: string): Notification => ({

@@ -2,7 +2,7 @@ package backend
 
 // The tooling needed to correctly run go generate is managed by the Makefile.
 // Run `make` from the project root to ensure these generate commands execute correctly.
-//go:generate protoc -I ../../vendor -I . --plugin ../../bin/${GOOS}/protoc-gen-gogofaster --gogofaster_out=plugins=grpc:. ./meta.proto
+//go:generate protoc -I . --plugin ../../bin/${GOOS}/protoc-gen-gogofaster --gogofaster_out=plugins=grpc:. ./meta.proto
 
 import (
 	"context"
@@ -148,6 +148,9 @@ type RunLogBase struct {
 
 	// The Unix timestamp indicating the run's scheduled time.
 	RunScheduledFor int64
+
+	// When the log is requested, should be ignored when it is zero.
+	RequestedAt int64
 }
 
 // LogWriter writes task logs and task state changes to a store.

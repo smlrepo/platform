@@ -6,7 +6,8 @@ import _ from 'lodash'
 import {fetchTimeSeries} from 'src/shared/apis/v2/timeSeries'
 
 // Types
-import {Template, CellQuery, RemoteDataState, FluxTable} from 'src/types'
+import {Template, RemoteDataState, FluxTable} from 'src/types'
+import {DashboardQuery} from 'src/types/v2/dashboards'
 
 // Utils
 import AutoRefresh from 'src/utils/AutoRefresh'
@@ -14,13 +15,13 @@ import AutoRefresh from 'src/utils/AutoRefresh'
 export const DEFAULT_TIME_SERIES = [{response: {results: []}}]
 
 interface RenderProps {
-  timeSeries: FluxTable[]
+  tables: FluxTable[]
   loading: RemoteDataState
 }
 
 interface Props {
   link: string
-  queries: CellQuery[]
+  queries: DashboardQuery[]
   inView?: boolean
   templates?: Template[]
   children: (r: RenderProps) => JSX.Element
@@ -29,7 +30,7 @@ interface Props {
 interface State {
   loading: RemoteDataState
   isFirstFetch: boolean
-  timeSeries: FluxTable[]
+  tables: FluxTable[]
 }
 
 class TimeSeries extends Component<Props, State> {
@@ -41,9 +42,9 @@ class TimeSeries extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = {
-      timeSeries: [],
       loading: RemoteDataState.NotStarted,
       isFirstFetch: false,
+      tables: [],
     }
   }
 
@@ -73,7 +74,7 @@ class TimeSeries extends Component<Props, State> {
     }
 
     if (!queries.length) {
-      return this.setState({timeSeries: []})
+      return this.setState({tables: []})
     }
 
     this.setState({loading: RemoteDataState.Loading, isFirstFetch})
@@ -81,15 +82,10 @@ class TimeSeries extends Component<Props, State> {
     const TEMP_RES = 300
 
     try {
-      const timeSeries = await fetchTimeSeries(
-        link,
-        this.queries,
-        TEMP_RES,
-        templates
-      )
+      const tables = await fetchTimeSeries(link, queries, TEMP_RES, templates)
 
       this.setState({
-        timeSeries,
+        tables,
         loading: RemoteDataState.Done,
       })
     } catch (err) {
@@ -98,9 +94,9 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public render() {
-    const {timeSeries, loading, isFirstFetch} = this.state
+    const {tables, loading, isFirstFetch} = this.state
 
-    const hasValues = _.some(timeSeries, s => {
+    const hasValues = _.some(tables, s => {
       const data = _.get(s, 'data', [])
       return !!data.length
     })
@@ -121,11 +117,7 @@ class TimeSeries extends Component<Props, State> {
       )
     }
 
-    return this.props.children({timeSeries, loading})
-  }
-
-  private get queries(): string[] {
-    return this.props.queries.map(q => q.text)
+    return this.props.children({tables, loading})
   }
 
   private isPropsDifferent(nextProps: Props) {

@@ -3,7 +3,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -46,6 +45,9 @@ type Executor interface {
 type QueuedRun struct {
 	TaskID, RunID platform.ID
 
+	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set when a run a manually requested
+	RequestedAt int64
+
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
 	// as the "now" option when executing the task.
 	Now int64
@@ -85,10 +87,11 @@ type RunResult interface {
 // which likely means we will change the method signatures to something where
 // we can wait for the result to complete and possibly inspect any relevant output.
 type Scheduler interface {
-	// Tick updates the time of the scheduler.
-	// Any owned tasks who are due to execute and who have a free concurrency slot,
-	// will begin a new execution.
-	Tick(now int64)
+	// Start allows the scheduler to Tick. A scheduler without start will do nothing
+	Start(ctx context.Context)
+
+	// Stop a scheduler from ticking.
+	Stop()
 
 	// ClaimTask begins control of task execution in this scheduler.
 	ClaimTask(task *StoreTask, meta *StoreTaskMeta) error
@@ -98,10 +101,11 @@ type Scheduler interface {
 	ReleaseTask(taskID platform.ID) error
 }
 
-type SchedulerOption func(Scheduler)
+// TickSchedulerOption is a option you can use to modify the schedulers behavior.
+type TickSchedulerOption func(*TickScheduler)
 
-func WithTicker(ctx context.Context, d time.Duration) SchedulerOption {
-	return func(s Scheduler) {
+func WithTicker(ctx context.Context, d time.Duration) TickSchedulerOption {
+	return func(s *TickScheduler) {
 		ticker := time.NewTicker(d)
 
 		go func() {
@@ -120,26 +124,22 @@ func WithTicker(ctx context.Context, d time.Duration) SchedulerOption {
 
 // WithLogger sets the logger for the scheduler.
 // If not set, the scheduler will use a no-op logger.
-func WithLogger(logger *zap.Logger) SchedulerOption {
-	return func(s Scheduler) {
-		switch sched := s.(type) {
-		case *outerScheduler:
-			sched.logger = logger.With(zap.String("svc", "taskd/scheduler"))
-		default:
-			panic(fmt.Sprintf("cannot apply WithLogger to Scheduler of type %T", s))
-		}
+func WithLogger(logger *zap.Logger) TickSchedulerOption {
+	return func(s *TickScheduler) {
+		s.logger = logger.With(zap.String("svc", "taskd/scheduler"))
 	}
 }
 
 // NewScheduler returns a new scheduler with the given desired state and the given now UTC timestamp.
-func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, now int64, opts ...SchedulerOption) Scheduler {
-	o := &outerScheduler{
+func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, now int64, opts ...TickSchedulerOption) *TickScheduler {
+	o := &TickScheduler{
 		desiredState:   desiredState,
 		executor:       executor,
 		logWriter:      lw,
 		now:            now,
 		taskSchedulers: make(map[string]*taskScheduler),
 		logger:         zap.NewNop(),
+		wg:             &sync.WaitGroup{},
 		metrics:        newSchedulerMetrics(),
 	}
 
@@ -150,7 +150,7 @@ func NewScheduler(desiredState DesiredState, executor Executor, lw LogWriter, no
 	return o
 }
 
-type outerScheduler struct {
+type TickScheduler struct {
 	desiredState DesiredState
 	executor     Executor
 	logWriter    LogWriter
@@ -160,15 +160,33 @@ type outerScheduler struct {
 
 	metrics *schedulerMetrics
 
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     *sync.WaitGroup
+
 	schedulerMu    sync.Mutex                // Protects access and modification of taskSchedulers map.
 	taskSchedulers map[string]*taskScheduler // Stringified task ID -> task scheduler.
 }
 
-func (s *outerScheduler) Tick(now int64) {
-	atomic.StoreInt64(&s.now, now)
-
+// Tick updates the time of the scheduler.
+// Any owned tasks who are due to execute and who have a free concurrency slot,
+// will begin a new execution.
+func (s *TickScheduler) Tick(now int64) {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
+
+	if s.ctx == nil {
+		return
+	}
+
+	select {
+	case <-s.ctx.Done():
+		return
+	default:
+		// do nothing and allow ticks
+	}
+
+	atomic.StoreInt64(&s.now, now)
 
 	affected := 0
 	for _, ts := range s.taskSchedulers {
@@ -180,10 +198,50 @@ func (s *outerScheduler) Tick(now int64) {
 	s.logger.Info("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
 }
 
-func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
+func (s *TickScheduler) Start(ctx context.Context) {
+	s.schedulerMu.Lock()
+	defer s.schedulerMu.Unlock()
+
+	s.ctx, s.cancel = context.WithCancel(ctx)
+}
+
+func (s *TickScheduler) Stop() {
+	defer s.wg.Wait()
+
+	s.schedulerMu.Lock()
+	defer s.schedulerMu.Unlock()
+
+	// if I was never started I cant stop
+	if s.cancel == nil {
+		return
+	}
+
+	s.cancel()
+
+	// release tasks
+	for id := range s.taskSchedulers {
+		delete(s.taskSchedulers, id)
+		s.metrics.ReleaseTask(id)
+	}
+}
+
+func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err error) {
+	s.schedulerMu.Lock()
+	defer s.schedulerMu.Unlock()
+	if s.ctx == nil {
+		return errors.New("can not claim tasks when i've not been started")
+	}
+
+	select {
+	case <-s.ctx.Done():
+		return errors.New("can not claim a task if not started")
+	default:
+		// do nothing and allow ticks
+	}
+
 	defer s.metrics.ClaimTask(err == nil)
 
-	ts, err := newTaskScheduler(s, task, meta, s.metrics)
+	ts, err := newTaskScheduler(s.ctx, s.wg, s, task, meta, s.metrics)
 	if err != nil {
 		return err
 	}
@@ -195,16 +253,12 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 	}
 
 	tid := task.ID.String()
-	s.schedulerMu.Lock()
 	_, ok := s.taskSchedulers[tid]
 	if ok {
-		s.schedulerMu.Unlock()
 		return errors.New("task has already been claimed")
 	}
 
 	s.taskSchedulers[tid] = ts
-
-	s.schedulerMu.Unlock()
 
 	next, hasQueue := ts.NextDue()
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
@@ -213,7 +267,7 @@ func (s *outerScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err er
 	return nil
 }
 
-func (s *outerScheduler) ReleaseTask(taskID platform.ID) error {
+func (s *TickScheduler) ReleaseTask(taskID platform.ID) error {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
 
@@ -231,7 +285,7 @@ func (s *outerScheduler) ReleaseTask(taskID platform.ID) error {
 	return nil
 }
 
-func (s *outerScheduler) PrometheusCollectors() []prometheus.Collector {
+func (s *TickScheduler) PrometheusCollectors() []prometheus.Collector {
 	return s.metrics.PrometheusCollectors()
 }
 
@@ -245,6 +299,7 @@ type taskScheduler struct {
 
 	// CancelFunc for context passed to runners, to enable Cancel method.
 	cancel context.CancelFunc
+	wg     *sync.WaitGroup
 
 	// Fixed-length slice of runners.
 	runners []*runner
@@ -260,7 +315,9 @@ type taskScheduler struct {
 }
 
 func newTaskScheduler(
-	s *outerScheduler,
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	s *TickScheduler,
 	task *StoreTask,
 	meta *StoreTaskMeta,
 	metrics *schedulerMetrics,
@@ -270,11 +327,12 @@ func newTaskScheduler(
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	ts := &taskScheduler{
 		now:           &s.now,
 		task:          task,
 		cancel:        cancel,
+		wg:            wg,
 		runners:       make([]*runner, meta.MaxConcurrency),
 		logger:        s.logger.With(zap.String("task_id", task.ID.String())),
 		metrics:       s.metrics,
@@ -285,7 +343,7 @@ func newTaskScheduler(
 
 	for i := range ts.runners {
 		logger := ts.logger.With(zap.Int("run_slot", i))
-		ts.runners[i] = newRunner(ctx, logger, task, s.desiredState, s.executor, s.logWriter, ts)
+		ts.runners[i] = newRunner(ctx, wg, logger, task, s.desiredState, s.executor, s.logWriter, ts)
 	}
 
 	return ts, nil
@@ -351,6 +409,7 @@ type runner struct {
 
 	// Cancelable context from parent taskScheduler.
 	ctx context.Context
+	wg  *sync.WaitGroup
 
 	task *StoreTask
 
@@ -366,6 +425,7 @@ type runner struct {
 
 func newRunner(
 	ctx context.Context,
+	wg *sync.WaitGroup,
 	logger *zap.Logger,
 	task *StoreTask,
 	desiredState DesiredState,
@@ -375,6 +435,7 @@ func newRunner(
 ) *runner {
 	return &runner{
 		ctx:          ctx,
+		wg:           wg,
 		state:        new(uint32),
 		task:         task,
 		desiredState: desiredState,
@@ -424,6 +485,7 @@ func (r *runner) RestartRun(qr QueuedRun) bool {
 	// create a QueuedRun because we cant stm.CreateNextRun
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
+	r.wg.Add(1)
 	go r.executeAndWait(qr, runLogger)
 
 	r.updateRunState(qr, RunStarted, runLogger)
@@ -454,12 +516,14 @@ func (r *runner) startFromWorking(now int64) {
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
 	runLogger.Info("Created run; beginning execution")
+	r.wg.Add(1)
 	go r.executeAndWait(qr, runLogger)
 
 	r.updateRunState(qr, RunStarted, runLogger)
 }
 
 func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
+	defer r.wg.Done()
 	rp, err := r.executor.Execute(r.ctx, qr)
 	if err != nil {
 		// TODO(mr): retry? and log error.
@@ -533,6 +597,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 		Task:            r.task,
 		RunID:           qr.RunID,
 		RunScheduledFor: qr.Now,
+		RequestedAt:     qr.RequestedAt,
 	}
 
 	// Arbitrarily chosen short time limit for how fast the log write must complete.

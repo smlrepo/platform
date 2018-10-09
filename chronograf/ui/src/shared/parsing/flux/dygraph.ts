@@ -1,5 +1,9 @@
+// Libraries
 import _ from 'lodash'
-import {FluxTable, DygraphValue} from 'src/types'
+
+// Types
+import {FluxTable} from 'src/types'
+import {DygraphValue} from 'src/external/dygraph'
 
 const COLUMN_BLACKLIST = new Set([
   '_time',
@@ -47,7 +51,7 @@ export const fluxTablesToDygraph = (
       }
 
       const uniqueColumnName = Object.entries(table.groupKey).reduce(
-        (acc, [k, v]) => acc + `[${k}=${v}]`,
+        (acc, [k, v]) => `${acc}[${k}=${v}]`,
         columnName
       )
 

@@ -11,16 +11,17 @@
 #    * All recursive Makefiles must support the targets: all and clean.
 #
 
-SUBDIRS := query task chronograf/ui
+SUBDIRS := query task
 
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
-export GO_BUILD=go build $(GO_ARGS)
-export GO_TEST=go test $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS)
+export GO_TEST=env GO111MODULE=on go test $(GO_ARGS)
+# Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
 export GO_GENERATE=go generate $(GO_ARGS)
-export GO_VET= go vet $(GO_ARGS)
+export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
@@ -40,8 +41,7 @@ PRECANNED := $(shell find chronograf/canned -name '*.json')
 # List of binary cmds to build
 CMDS := \
 	bin/$(GOOS)/influx \
-	bin/$(GOOS)/influxd \
-	bin/$(GOOS)/fluxd
+	bin/$(GOOS)/influxd
 
 # List of utilities to build as part of the build process
 UTILS := \
@@ -55,50 +55,50 @@ UTILS := \
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
 all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-all: vendor node_modules $(UTILS) subdirs generate $(CMDS)
+all: node_modules $(UTILS) subdirs chronograf/ui generate $(CMDS)
 
 # Target to build subdirs.
 # Each subdirs must support the `all` target.
 subdirs: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d all; done
 
+
+chronograf/ui:
+	$(MAKE) -C chronograf/ui all
+
 #
 # Define targets for commands
 #
 $(CMDS): $(SOURCES)
-	$(GO_BUILD) -i -o $@ ./cmd/$(shell basename "$@")
+	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 #
 # Define targets for utilities
 #
 
-bin/$(GOOS)/pigeon: ./vendor/github.com/mna/pigeon/main.go
-	go build -i -o $@  ./vendor/github.com/mna/pigeon
+bin/$(GOOS)/pigeon: go.mod go.sum
+	$(GO_BUILD) -o $@ github.com/mna/pigeon
 
-bin/$(GOOS)/protoc-gen-gogofaster: vendor $(call go_deps,./vendor/github.com/gogo/protobuf/protoc-gen-gogofaster)
-	$(GO_BUILD) -i -o $@ ./vendor/github.com/gogo/protobuf/protoc-gen-gogofaster
+bin/$(GOOS)/protoc-gen-gogofaster: go.mod go.sum
+	$(GO_BUILD) -o $@ github.com/gogo/protobuf/protoc-gen-gogofaster
 
-bin/$(GOOS)/goreleaser: ./vendor/github.com/goreleaser/goreleaser/main.go
-	go build -i -o $@ ./vendor/github.com/goreleaser/goreleaser
+bin/$(GOOS)/goreleaser: go.mod go.sum
+	$(GO_BUILD) -o $@ github.com/goreleaser/goreleaser
 
-bin/$(GOOS)/go-bindata: ./vendor/github.com/kevinburke/go-bindata/go-bindata/main.go
-	go build -i -o $@ ./vendor/github.com/kevinburke/go-bindata/go-bindata
+bin/$(GOOS)/go-bindata: go.mod go.sum
+	$(GO_BUILD) -o $@ github.com/kevinburke/go-bindata/go-bindata
 
-vendor: Gopkg.lock
-	dep ensure -v -vendor-only
 
 node_modules: chronograf/ui/node_modules
+
+chronograf_lint:
+	make -C chronograf/ui lint
 
 chronograf/ui/node_modules:
 	make -C chronograf/ui node_modules
 
-#
-# Define how source dependencies are managed
-#
-
-vendor/github.com/mna/pigeon/main.go: vendor
-vendor/github.com/goreleaser/goreleaser/main.go: vendor
-vendor/github.com/kevinburke/go-bindata/go-bindata/main.go: vendor
+chronograf/ui/build:
+	mkdir -p chronograf/ui/build
 
 #
 # Define action only targets
@@ -121,18 +121,18 @@ generate: chronograf/dist/dist_gen.go chronograf/server/swagger_gen.go chronogra
 test-js: node_modules
 	make -C chronograf/ui test
 
-test-go: vendor
+test-go:
 	$(GO_TEST) ./...
 
 test: test-go test-js
 
-test-go-race: vendor
+test-go-race:
 	$(GO_TEST) -race -count=1 ./...
 
 vet:
 	$(GO_VET) -v ./...
 
-bench: vendor
+bench:
 	$(GO_TEST) -bench=. -run=^$$ ./...
 
 nightly: bin/$(GOOS)/goreleaser all
@@ -141,7 +141,27 @@ nightly: bin/$(GOOS)/goreleaser all
 # Recursively clean all subdirs
 clean: $(SUBDIRS)
 	@for d in $^; do $(MAKE) -C $$d $(MAKECMDGOALS); done
+	$(MAKE) -C chronograf/ui $(MAKECMDGOALS)
 	rm -rf bin
 
+
+define CHRONOGIRAFFE
+             ._ o o
+             \_`-)|_
+          ,""      _\_
+        ,"  ## |   0 0.
+      ," ##   ,-\__    `.
+    ,"       /     `--._;) - "HAI, I'm Chronogiraffe. Let's be friends!"
+  ,"     ## /
+,"   ##    /
+endef
+export CHRONOGIRAFFE
+chronogiraffe: $(UTILS) subdirs generate $(CMDS)
+	@echo "$$CHRONOGIRAFFE"
+
+run: chronogiraffe
+	./bin/$(GOOS)/influxd --developer-mode=true
+
+
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) fmt test test-go test-js test-go-race bench clean node_modules vet nightly
+.PHONY: all subdirs $(SUBDIRS) chronograf/ui run fmt test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe

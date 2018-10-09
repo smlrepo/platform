@@ -17,9 +17,19 @@ import (
 type OrgHandler struct {
 	*httprouter.Router
 
-	OrganizationService platform.OrganizationService
-	BucketService       platform.BucketService
+	OrganizationService        platform.OrganizationService
+	BucketService              platform.BucketService
+	UserResourceMappingService platform.UserResourceMappingService
 }
+
+const (
+	organizationsPath            = "/api/v2/orgs"
+	organizationsIDPath          = "/api/v2/orgs/:id"
+	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
+	organizationsIDMembersIDPath = "/api/v2/orgs/:id/members/:userID"
+	organizationsIDOwnersPath    = "/api/v2/orgs/:id/owners"
+	organizationsIDOwnersIDPath  = "/api/v2/orgs/:id/owners/:userID"
+)
 
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler() *OrgHandler {
@@ -27,11 +37,20 @@ func NewOrgHandler() *OrgHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/orgs", h.handlePostOrg)
-	h.HandlerFunc("GET", "/v1/orgs", h.handleGetOrgs)
-	h.HandlerFunc("GET", "/v1/orgs/:id", h.handleGetOrg)
-	h.HandlerFunc("PATCH", "/v1/orgs/:id", h.handlePatchOrg)
-	h.HandlerFunc("DELETE", "/v1/orgs/:id", h.handleDeleteOrg)
+	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
+	h.HandlerFunc("GET", organizationsPath, h.handleGetOrgs)
+	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
+	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)
+	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
+
+	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
+
+	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
+
 	return h
 }
 
@@ -51,7 +70,7 @@ func (o orgsResponse) ToPlatform() []*platform.Organization {
 func newOrgsResponse(orgs []*platform.Organization) *orgsResponse {
 	res := orgsResponse{
 		Links: map[string]string{
-			"self": "/v2/orgs",
+			"self": "/api/v2/orgs",
 		},
 		Organizations: []*orgResponse{},
 	}
@@ -69,17 +88,17 @@ type orgResponse struct {
 func newOrgResponse(o *platform.Organization) *orgResponse {
 	return &orgResponse{
 		Links: map[string]string{
-			"self":       fmt.Sprintf("/v2/orgs/%s", o.ID),
-			"users":      fmt.Sprintf("/v2/orgs/%s/users", o.ID),
-			"buckets":    fmt.Sprintf("/v2/buckets?org=%s", o.Name),
-			"tasks":      fmt.Sprintf("/v2/tasks?org=%s", o.Name),
-			"dashboards": fmt.Sprintf("/v2/dashboards?org=%s", o.Name),
+			"self":       fmt.Sprintf("/api/v2/orgs/%s", o.ID),
+			"members":    fmt.Sprintf("/api/v2/orgs/%s/members", o.ID),
+			"buckets":    fmt.Sprintf("/api/v2/buckets?org=%s", o.Name),
+			"tasks":      fmt.Sprintf("/api/v2/tasks?org=%s", o.Name),
+			"dashboards": fmt.Sprintf("/api/v2/dashboards?org=%s", o.Name),
 		},
 		Organization: *o,
 	}
 }
 
-// handlePostOrg is the HTTP handler for the POST /v1/orgs route.
+// handlePostOrg is the HTTP handler for the POST /api/v2/orgs route.
 func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -115,7 +134,7 @@ func decodePostOrgRequest(ctx context.Context, r *http.Request) (*postOrgRequest
 	}, nil
 }
 
-// handleGetOrg is the HTTP handler for the GET /v1/orgs/:id route.
+// handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -160,7 +179,7 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 	return req, nil
 }
 
-// handleGetOrgs is the HTTP handler for the GET /v1/orgs route.
+// handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
 func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -204,7 +223,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 	return req, nil
 }
 
-// handleDeleteOrganization is the HTTP handler for the DELETE /v1/organizations/:id route.
+// handleDeleteOrganization is the HTTP handler for the DELETE /api/v2/orgs/:id route.
 func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -244,7 +263,7 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 	return req, nil
 }
 
-// handlePatchOrg is the HTTP handler for the PATH /v1/orgs route.
+// handlePatchOrg is the HTTP handler for the PATH /api/v2/orgs route.
 func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -295,7 +314,7 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 }
 
 const (
-	organizationPath = "/v1/orgs"
+	organizationPath = "/api/v2/orgs"
 )
 
 // OrganizationService connects to Influx via HTTP using tokens to manage organizations.
