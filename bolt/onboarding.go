@@ -3,8 +3,8 @@ package bolt
 import (
 	"context"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	bolt "go.etcd.io/bbolt"
 )
 
 var onboardingBucket = []byte("onboardingv1")
