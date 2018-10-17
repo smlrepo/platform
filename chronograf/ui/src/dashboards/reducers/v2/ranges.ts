@@ -3,15 +3,15 @@ import _ from 'lodash'
 import {TimeRange} from 'src/types'
 import {Action, ActionTypes} from 'src/dashboards/actions/v2/ranges'
 
-interface Range extends TimeRange {
+export interface Range extends TimeRange {
   dashboardID: string
 }
 
-type State = Range[]
+export type RangeState = Range[]
 
-const initialState: State = []
+const initialState: RangeState = []
 
-export default (state: State = initialState, action: Action) => {
+export default (state: RangeState = initialState, action: Action) => {
   switch (action.type) {
     case ActionTypes.DeleteTimeRange: {
       const {dashboardID} = action.payload

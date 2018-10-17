@@ -50,11 +50,11 @@ func NewDashboardHandler() *DashboardHandler {
 	h.HandlerFunc("DELETE", dashboardsIDCellsIDPath, h.handleDeleteDashboardCell)
 	h.HandlerFunc("PATCH", dashboardsIDCellsIDPath, h.handlePatchDashboardCell)
 
-	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Member))
+	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(h.UserResourceMappingService, platform.DashboardResourceType, platform.Member))
 	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Member))
 	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Member))
 
-	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.Owner))
+	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(h.UserResourceMappingService, platform.DashboardResourceType, platform.Owner))
 	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(h.UserResourceMappingService, platform.Owner))
 	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(h.UserResourceMappingService, platform.Owner))
 	return h
@@ -194,16 +194,17 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	qp := r.URL.Query()
 	req := &getDashboardsRequest{}
 
+	initialID := platform.InvalidID()
 	if ids, ok := qp["id"]; ok {
 		for _, id := range ids {
-			i := &platform.ID{}
+			i := initialID
 			if err := i.DecodeFromString(id); err != nil {
 				return nil, err
 			}
-			req.filter.IDs = append(req.filter.IDs, i)
+			req.filter.IDs = append(req.filter.IDs, &i)
 		}
 	} else if owner := qp.Get("owner"); owner != "" {
-		req.ownerID = &platform.ID{}
+		req.ownerID = &initialID
 		if err := req.ownerID.DecodeFromString(owner); err != nil {
 			return nil, err
 		}
@@ -425,7 +426,7 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 
 // Valid validates that the dashboard ID is non zero valued and update has expected values set.
 func (r *patchDashboardRequest) Valid() error {
-	if len(r.DashboardID) == 0 {
+	if !r.DashboardID.Valid() {
 		return fmt.Errorf("missing dashboard ID")
 	}
 
@@ -827,6 +828,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID,
 		return err
 	}
 
+	// fixme > in case c does not contain a valid ID this errors out
 	b, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -882,6 +884,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 		return nil, err
 	}
 
+	// fixme > in case upd does not containa a valid ViewID this errors out
 	b, err := json.Marshal(upd)
 	if err != nil {
 		return nil, err

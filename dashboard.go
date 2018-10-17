@@ -45,14 +45,14 @@ type DashboardService interface {
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID    ID      `json:"id"`
+	ID    ID      `json:"id,omitempty"`
 	Name  string  `json:"name"`
 	Cells []*Cell `json:"cells"`
 }
 
 // Cell holds positional information about a cell on dashboard and a reference to a cell.
 type Cell struct {
-	ID     ID    `json:"id"`
+	ID     ID    `json:"id,omitempty"`
 	X      int32 `json:"x"`
 	Y      int32 `json:"y"`
 	W      int32 `json:"w"`
@@ -92,7 +92,7 @@ type CellUpdate struct {
 	Y      *int32 `json:"y"`
 	W      *int32 `json:"w"`
 	H      *int32 `json:"h"`
-	ViewID *ID    `json:"viewID"`
+	ViewID ID     `json:"viewID"`
 }
 
 // Apply applies an update to a Cell.
@@ -113,8 +113,8 @@ func (u CellUpdate) Apply(c *Cell) error {
 		c.H = *u.H
 	}
 
-	if u.ViewID != nil {
-		c.ViewID = *u.ViewID
+	if u.ViewID.Valid() {
+		c.ViewID = u.ViewID
 	}
 
 	return nil

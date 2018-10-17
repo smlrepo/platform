@@ -1,4 +1,4 @@
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 
 import _ from 'lodash'
@@ -14,6 +14,7 @@ import {NO_CELL} from 'src/shared/constants'
 
 // Types
 import DygraphClass, {SeriesLegendData} from 'src/external/dygraph'
+import {AppState} from 'src/types/v2'
 
 interface Props {
   hoverTime: number
@@ -209,7 +210,7 @@ class DygraphLegend extends PureComponent<Props, State> {
     return ''
   }
 
-  private unhighlightCallback = (e: MouseEvent) => {
+  private unhighlightCallback = (e: MouseEvent<Element>) => {
     const {top, bottom, left, right} = this.legendRef.getBoundingClientRect()
 
     const mouseY = e.clientY
@@ -276,9 +277,9 @@ const mapDispatchToProps = {
   setActiveCell: actions.setActiveCell,
 }
 
-const mapStateToProps = ({hoverTime, activeViewID}) => ({
-  activeViewID,
-  hoverTime: +hoverTime,
+const mapStateToProps = (state: AppState) => ({
+  activeViewID: state.views.activeViewID,
+  hoverTime: +state.hoverTime,
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DygraphLegend)

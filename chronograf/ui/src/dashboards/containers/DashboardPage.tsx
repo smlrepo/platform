@@ -4,23 +4,27 @@ import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 
 // Components
-import {Page} from 'src/page_layout'
+import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
+import VEO from 'src/dashboards/components/VEO'
+import {OverlayTechnology} from 'src/clockface'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions/v2'
 import * as rangesActions from 'src/dashboards/actions/v2/ranges'
 import * as appActions from 'src/shared/actions/app'
-import * as errorActions from 'src/shared/actions/errors'
 import * as notifyActions from 'src/shared/actions/notifications'
+import * as viewActions from 'src/dashboards/actions/v2/views'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 import {updateDashboardLinks} from 'src/dashboards/utils/dashboardSwitcherLinks'
 import AutoRefresh from 'src/utils/AutoRefresh'
+import {getNewView} from 'src/dashboards/utils/cellGetters'
+import {cellAddFailed} from 'src/shared/copy/notifications'
 
 // APIs
 import {loadDashboardLinks} from 'src/dashboards/apis/v2'
@@ -32,7 +36,7 @@ import {
   TEMP_VAR_DASHBOARD_TIME,
   TEMP_VAR_UPPER_DASHBOARD_TIME,
 } from 'src/shared/constants'
-import {FORMAT_INFLUXQL, defaultTimeRange} from 'src/shared/data/timeRanges'
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {EMPTY_LINKS} from 'src/dashboards/constants/dashboardHeader'
 
 // Types
@@ -41,48 +45,31 @@ import {
   Source,
   Dashboard,
   Cell,
+  View,
   TimeRange,
   DashboardSwitcherLinks,
 } from 'src/types/v2'
-import {Template} from 'src/types'
+import {Template, RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
-import {InjectedRouter} from 'react-router'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
-import * as ErrorsActions from 'src/types/actions/errors'
 import * as NotificationsActions from 'src/types/actions/notifications'
 
-interface Props extends ManualRefreshProps, WithRouterProps {
+interface StateProps {
   links: Links
-  source: Source
   sources: Source[]
-  params: {
-    dashboardID: string
-  }
-  location: Location
+  zoomedTimeRange: TimeRange
+  timeRange: TimeRange
   dashboard: Dashboard
   autoRefresh: number
-  timeRange: TimeRange
-  zoomedTimeRange: TimeRange
-  showTemplateControlBar: boolean
   inPresentationMode: boolean
-  cellQueryStatus: {
-    queryID: string
-    status: object
-  }
-  router: InjectedRouter
-  errorThrown: ErrorsActions.ErrorThrownActionCreator
-  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
-  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  notify: NotificationsActions.PublishNotificationActionCreator
-  selectedCell: Cell
-  thresholdsListType: string
-  thresholdsListColors: ColorsModels.Color[]
-  gaugeColors: ColorsModels.Color[]
-  lineColors: ColorsModels.Color[]
-  addCell: typeof dashboardActions.addCellAsync
+  showTemplateControlBar: boolean
+  views: {[viewID: string]: {view: View; status: RemoteDataState}}
+}
+
+interface DispatchProps {
   deleteCell: typeof dashboardActions.deleteCellAsync
   copyCell: typeof dashboardActions.copyDashboardCellAsync
   getDashboard: typeof dashboardActions.getDashboardAsync
@@ -91,13 +78,42 @@ interface Props extends ManualRefreshProps, WithRouterProps {
   updateQueryParams: typeof rangesActions.updateQueryParams
   setDashTimeV1: typeof rangesActions.setDashTimeV1
   setZoomedTimeRange: typeof rangesActions.setZoomedTimeRange
+  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
+  handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
+  notify: NotificationsActions.PublishNotificationActionCreator
+  onAddCell: typeof dashboardActions.addCellAsync
+  onCreateCellWithView: typeof dashboardActions.createCellWithView
+  onUpdateView: typeof viewActions.updateView
 }
+
+interface PassedProps {
+  source: Source
+  params: {
+    dashboardID: string
+  }
+  location: Location
+  cellQueryStatus: {
+    queryID: string
+    status: object
+  }
+  thresholdsListType: string
+  thresholdsListColors: ColorsModels.Color[]
+  gaugeColors: ColorsModels.Color[]
+  lineColors: ColorsModels.Color[]
+}
+
+type Props = PassedProps &
+  StateProps &
+  DispatchProps &
+  ManualRefreshProps &
+  WithRouterProps
 
 interface State {
   scrollTop: number
   windowHeight: number
-  selectedCell: Cell | null
+  selectedView: View | null
   dashboardLinks: DashboardSwitcherLinks
+  isShowingVEO: boolean
 }
 
 @ErrorHandling
@@ -107,9 +123,10 @@ class DashboardPage extends Component<Props, State> {
 
     this.state = {
       scrollTop: 0,
-      selectedCell: null,
+      selectedView: null,
       windowHeight: window.innerHeight,
       dashboardLinks: EMPTY_LINKS,
+      isShowingVEO: false,
     }
   }
 
@@ -148,6 +165,7 @@ class DashboardPage extends Component<Props, State> {
 
   public render() {
     const {
+      source,
       timeRange,
       zoomedTimeRange,
       showTemplateControlBar,
@@ -159,7 +177,7 @@ class DashboardPage extends Component<Props, State> {
       handleChooseAutoRefresh,
       handleClickPresentationButton,
     } = this.props
-    const {dashboardLinks} = this.state
+    const {dashboardLinks, isShowingVEO, selectedView} = this.state
 
     return (
       <Page>
@@ -193,8 +211,17 @@ class DashboardPage extends Component<Props, State> {
             inPresentationMode={inPresentationMode}
             onPositionChange={this.handlePositionChange}
             onDeleteCell={this.handleDeleteDashboardCell}
+            onEditView={this.handleEditView}
           />
         )}
+        <OverlayTechnology visible={isShowingVEO}>
+          <VEO
+            source={source}
+            view={selectedView}
+            onHide={this.handleHideVEO}
+            onSave={this.handleSaveVEO}
+          />
+        </OverlayTechnology>
       </Page>
     )
   }
@@ -230,10 +257,7 @@ class DashboardPage extends Component<Props, State> {
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {dashboard, setDashTimeV1, updateQueryParams} = this.props
-    setDashTimeV1(dashboard.id, {
-      ...timeRange,
-      format: FORMAT_INFLUXQL,
-    })
+    setDashTimeV1(dashboard.id, {...timeRange})
 
     updateQueryParams({
       lower: timeRange.lower,
@@ -247,8 +271,45 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private handleAddCell = async (): Promise<void> => {
-    const {dashboard, addCell} = this.props
-    await addCell(dashboard)
+    const newView = getNewView()
+
+    this.setState({
+      isShowingVEO: true,
+      selectedView: newView,
+    })
+  }
+
+  private handleHideVEO = (): void => {
+    this.setState({isShowingVEO: false})
+  }
+
+  private handleSaveVEO = async (view: View): Promise<void> => {
+    this.setState({isShowingVEO: false})
+
+    const {dashboard, onCreateCellWithView, onUpdateView, notify} = this.props
+
+    try {
+      if (view.id === '') {
+        await onCreateCellWithView(dashboard, view)
+      } else {
+        await onUpdateView(view.links.self, view)
+      }
+    } catch {
+      notify(cellAddFailed())
+    }
+  }
+
+  private handleEditView = (viewID: string): void => {
+    const entry = this.props.views[viewID]
+
+    if (!entry || !entry.view) {
+      throw new Error(`Can't edit non-existant view with ID "${viewID}"`)
+    }
+
+    this.setState({
+      isShowingVEO: true,
+      selectedView: entry.view,
+    })
   }
 
   private handleCloneCell = async (cell: Cell): Promise<void> => {
@@ -356,7 +417,7 @@ class DashboardPage extends Component<Props, State> {
   }
 }
 
-const mstp = (state, {params: {dashboardID}}) => {
+const mstp = (state, {params: {dashboardID}}): StateProps => {
   const {
     links,
     app: {
@@ -366,15 +427,17 @@ const mstp = (state, {params: {dashboardID}}) => {
     sources,
     ranges,
     dashboards,
+    views: {views},
   } = state
 
   const timeRange =
-    ranges.find(r => r.dashboardID === dashboardID) || defaultTimeRange
+    ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
   const dashboard = dashboards.find(d => d.id === dashboardID)
 
   return {
     links,
+    views,
     sources,
     zoomedTimeRange: {lower: null, upper: null},
     timeRange,
@@ -385,20 +448,21 @@ const mstp = (state, {params: {dashboardID}}) => {
   }
 }
 
-const mdtp: Partial<Props> = {
+const mdtp: DispatchProps = {
   getDashboard: dashboardActions.getDashboardAsync,
   updateDashboard: dashboardActions.updateDashboardAsync,
   copyCell: dashboardActions.copyDashboardCellAsync,
   deleteCell: dashboardActions.deleteCellAsync,
-  addCell: dashboardActions.addCellAsync,
   updateCells: dashboardActions.updateCellsAsync,
   handleChooseAutoRefresh: appActions.setAutoRefresh,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  errorThrown: errorActions.errorThrown,
   notify: notifyActions.notify,
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,
+  onAddCell: dashboardActions.addCellAsync,
+  onCreateCellWithView: dashboardActions.createCellWithView,
+  onUpdateView: viewActions.updateView,
 }
 
 export default connect(mstp, mdtp)(

@@ -25,7 +25,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  1,
@@ -44,7 +44,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 
 	// For every second, can queue for timestamps 4 and 5.
 	task = &backend.StoreTask{
-		ID: platform.ID{2},
+		ID: platform.ID(2),
 	}
 	meta = &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
@@ -53,7 +53,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 		CurrentlyRunning: []*backend.StoreTaskMetaRun{
 			&backend.StoreTaskMetaRun{
 				Now:   4,
-				RunID: platform.ID{10},
+				RunID: uint64(10),
 			},
 		},
 	}
@@ -99,7 +99,7 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  2,
@@ -169,7 +169,7 @@ func TestScheduler_Release(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
@@ -197,6 +197,57 @@ func TestScheduler_Release(t *testing.T) {
 	}
 }
 
+func TestScheduler_UpdateTask(t *testing.T) {
+	d := mock.NewDesiredState()
+	e := mock.NewExecutor()
+	s := backend.NewScheduler(d, e, backend.NopLogWriter{}, 3059, backend.WithLogger(zaptest.NewLogger(t)))
+	s.Start(context.Background())
+	defer s.Stop()
+
+	task := &backend.StoreTask{
+		ID: platform.ID(1),
+	}
+	meta := &backend.StoreTaskMeta{
+		MaxConcurrency:  1,
+		EffectiveCron:   "* * * * *", // Every minute.
+		LatestCompleted: 3000,
+	}
+
+	d.SetTaskMeta(task.ID, *meta)
+	if err := s.ClaimTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3060)
+	p, err := e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p[0].Finish(mock.NewRunResult(nil, false), nil)
+
+	meta.EffectiveCron = "0 * * * *"
+	meta.MaxConcurrency = 30
+	d.SetTaskMeta(task.ID, *meta)
+
+	if err := s.UpdateTask(task, meta); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3061)
+	p, err = e.PollForNumberRunning(task.ID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Tick(3600)
+	p, err = e.PollForNumberRunning(task.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p[0].Finish(mock.NewRunResult(nil, false), nil)
+}
+
 func TestScheduler_Queue(t *testing.T) {
 	d := mock.NewDesiredState()
 	e := mock.NewExecutor()
@@ -205,7 +256,7 @@ func TestScheduler_Queue(t *testing.T) {
 	defer o.Stop()
 
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  1,
@@ -326,7 +377,7 @@ func TestScheduler_RunLog(t *testing.T) {
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,
@@ -418,7 +469,7 @@ func TestScheduler_Metrics(t *testing.T) {
 
 	// Claim a task that starts later.
 	task := &backend.StoreTask{
-		ID: platform.ID{1},
+		ID: platform.ID(1),
 	}
 	meta := &backend.StoreTaskMeta{
 		MaxConcurrency:  99,

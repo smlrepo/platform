@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,10 +35,10 @@ func NewInMemStore() Store {
 	}
 }
 
-func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script string, scheduleAfter int64) (platform.ID, error) {
-	o, err := StoreValidator.CreateArgs(org, user, script)
+func (s *inmem) CreateTask(_ context.Context, req CreateTaskRequest) (platform.ID, error) {
+	o, err := StoreValidator.CreateArgs(req)
 	if err != nil {
-		return nil, err
+		return platform.InvalidID(), err
 	}
 
 	id := s.idgen.ID()
@@ -47,29 +46,30 @@ func (s *inmem) CreateTask(_ context.Context, org, user platform.ID, script stri
 	task := StoreTask{
 		ID: id,
 
-		Org:  org,
-		User: user,
+		Org:  req.Org,
+		User: req.User,
 
 		Name: o.Name,
 
-		Script: script,
+		Script: req.Script,
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, t := range s.tasks {
-		if t.Name == task.Name && (bytes.Equal(t.Org, org) || bytes.Equal(t.User, user)) {
-			return nil, ErrTaskNameTaken
-		}
-	}
+
 	s.tasks = append(s.tasks, task)
-	s.runners[id.String()] = StoreTaskMeta{
+
+	stm := StoreTaskMeta{
 		MaxConcurrency:  int32(o.Concurrency),
-		Status:          string(TaskEnabled),
-		LatestCompleted: scheduleAfter,
+		Status:          string(req.Status),
+		LatestCompleted: req.ScheduleAfter,
 		EffectiveCron:   o.EffectiveCronString(),
 		Delay:           int32(o.Delay / time.Second),
 	}
+	if stm.Status == "" {
+		stm.Status = string(DefaultTaskStatus)
+	}
+	s.runners[id.String()] = stm
 
 	return id, nil
 }
@@ -84,19 +84,11 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 	defer s.mu.Unlock()
 
 	for n, t := range s.tasks {
-		if !bytes.Equal(t.ID, id) {
+		if t.ID != id {
 			continue
 		}
 
-		if t.Name != op.Name {
-			for i := range s.tasks {
-				tt := s.tasks[i]
-				if tt.Name == op.Name && i != n && (bytes.Equal(tt.Org, t.Org) || bytes.Equal(tt.User, t.User)) {
-					return ErrTaskNameTaken
-				}
-			}
-			t.Name = op.Name
-		}
+		t.Name = op.Name
 		t.Script = script
 		s.tasks[n] = t
 		return nil
@@ -106,7 +98,7 @@ func (s *inmem) ModifyTask(_ context.Context, id platform.ID, script string) err
 }
 
 func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTask, error) {
-	if len(params.Org) > 0 && len(params.User) > 0 {
+	if params.Org.Valid() && params.User.Valid() {
 		return nil, errors.New("ListTasks: org and user filters are mutually exclusive")
 	}
 
@@ -131,19 +123,25 @@ func (s *inmem) ListTasks(_ context.Context, params TaskSearchParams) ([]StoreTa
 
 	org := params.Org
 	user := params.User
-	after := params.After
+
+	var after platform.ID
+	if !params.After.Valid() {
+		after = platform.ID(1)
+	} else {
+		after = params.After
+	}
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	for _, t := range s.tasks {
-		if len(after) > 0 && bytes.Compare(after, t.ID) >= 0 {
+		if after >= t.ID {
 			continue
 		}
-		if len(org) > 0 && !bytes.Equal(org, t.Org) {
+		if org.Valid() && org != t.Org {
 			continue
 		}
-		if len(user) > 0 && !bytes.Equal(user, t.User) {
+		if user.Valid() && user != t.User {
 			continue
 		}
 
@@ -161,7 +159,7 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 	defer s.mu.RUnlock()
 
 	for _, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			// Return a copy of the task.
 			task := new(StoreTask)
 			*task = t
@@ -169,21 +167,24 @@ func (s *inmem) FindTaskByID(_ context.Context, id platform.ID) (*StoreTask, err
 		}
 	}
 
-	return nil, nil
+	return nil, ErrTaskNotFound
 }
 
 func (s *inmem) FindTaskByIDWithMeta(_ context.Context, id platform.ID) (*StoreTask, *StoreTaskMeta, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	task := new(StoreTask)
+	var task *StoreTask
 	for _, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			// Return a copy of the task.
-
+			task = new(StoreTask)
 			*task = t
 			break
 		}
+	}
+	if task == nil {
+		return nil, nil, ErrTaskNotFound
 	}
 
 	meta, ok := s.runners[id.String()]
@@ -204,7 +205,7 @@ func (s *inmem) EnableTask(ctx context.Context, id platform.ID) error {
 	if !ok {
 		return errors.New("task meta not found")
 	}
-	meta.Status = string(TaskEnabled)
+	meta.Status = string(TaskActive)
 	s.runners[strID] = meta
 
 	return nil
@@ -219,7 +220,7 @@ func (s *inmem) DisableTask(ctx context.Context, id platform.ID) error {
 	if !ok {
 		return errors.New("task meta not found")
 	}
-	meta.Status = string(TaskDisabled)
+	meta.Status = string(TaskInactive)
 	s.runners[strID] = meta
 
 	return nil
@@ -231,7 +232,7 @@ func (s *inmem) FindTaskMetaByID(ctx context.Context, id platform.ID) (*StoreTas
 
 	meta, ok := s.runners[id.String()]
 	if !ok {
-		return nil, errors.New("task meta not found")
+		return nil, ErrTaskNotFound
 	}
 
 	return &meta, nil
@@ -243,7 +244,7 @@ func (s *inmem) DeleteTask(_ context.Context, id platform.ID) (deleted bool, err
 
 	idx := -1
 	for i, t := range s.tasks {
-		if bytes.Equal(t.ID, id) {
+		if t.ID == id {
 			idx = i
 			break
 		}
@@ -278,7 +279,7 @@ func (s *inmem) CreateNextRun(ctx context.Context, taskID platform.ID, now int64
 	if err != nil {
 		return RunCreation{}, err
 	}
-	rc.Created.TaskID = append([]byte(nil), taskID...)
+	rc.Created.TaskID = taskID
 
 	s.runners[taskID.String()] = stm
 	return rc, nil
@@ -330,7 +331,7 @@ func (s *inmem) delete(ctx context.Context, id platform.ID, f func(StoreTask) pl
 	newTasks := []StoreTask{}
 	deletingTasks := []platform.ID{}
 	for i := range s.tasks {
-		if !bytes.Equal(f(s.tasks[i]), id) {
+		if f(s.tasks[i]) != id {
 			newTasks = append(newTasks, s.tasks[i])
 		} else {
 			deletingTasks = append(deletingTasks, s.tasks[i].ID)

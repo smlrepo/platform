@@ -1,6 +1,5 @@
-// Types
+// Libraries
 import {Dispatch} from 'redux'
-import {Dashboard, Cell} from 'src/types/v2'
 import {replace} from 'react-router-redux'
 
 // APIs
@@ -15,13 +14,16 @@ import {
   deleteCell as deleteCellAJAX,
   copyCell as copyCellAJAX,
 } from 'src/dashboards/apis/v2'
+import {createView as createViewAJAX} from 'src/dashboards/apis/v2/view'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
+  DeleteTimeRangeAction,
 } from 'src/dashboards/actions/v2/ranges'
+import {setView, SetViewAction} from 'src/dashboards/actions/v2/views'
 
 // Utils
 import {
@@ -31,6 +33,11 @@ import {
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+
+// Types
+import {RemoteDataState} from 'src/types'
+import {PublishNotificationAction} from 'src/types/actions/notifications'
+import {Dashboard, Cell, View, AppState} from 'src/types/v2'
 
 export enum ActionTypes {
   LoadDashboards = 'LOAD_DASHBOARDS',
@@ -47,6 +54,10 @@ export type Action =
   | LoadDashboardAction
   | UpdateDashboardAction
   | DeleteCellAction
+  | PublishNotificationAction
+  | SetViewAction
+  | DeleteTimeRangeAction
+  | DeleteDashboardFailedAction
 
 interface DeleteCellAction {
   type: ActionTypes.DeleteCell
@@ -234,6 +245,35 @@ export const addCellAsync = (dashboard: Dashboard) => async (
   }
 }
 
+export const createCellWithView = (dashboard: Dashboard, view: View) => async (
+  dispatch: Dispatch<Action>,
+  getState: () => AppState
+): Promise<void> => {
+  try {
+    const viewsLink = getState().links.views
+    const createdView = await createViewAJAX(viewsLink, view)
+
+    const cell = {
+      ...getNewDashboardCell(dashboard),
+      viewID: createdView.id,
+    }
+
+    const createdCell = await addCellAJAX(dashboard.links.cells, cell)
+
+    let updatedDashboard = {
+      ...dashboard,
+      cells: [...dashboard.cells, createdCell],
+    }
+
+    updatedDashboard = await updateDashboardAJAX(dashboard)
+
+    dispatch(setView(createdView.id, createdView, RemoteDataState.Done))
+    dispatch(updateDashboard(updatedDashboard))
+  } catch {
+    notify(copy.cellAddFailed())
+  }
+}
+
 export const updateCellsAsync = (dashboard: Dashboard, cells: Cell[]) => async (
   dispatch: Dispatch<Action>
 ): Promise<void> => {
@@ -280,6 +320,3 @@ export const copyDashboardCellAsync = (
     console.error(error)
   }
 }
-
-// TODO: implement
-export const setActiveCell = () => ({})

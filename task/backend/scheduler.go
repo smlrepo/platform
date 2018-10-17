@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -95,6 +96,9 @@ type Scheduler interface {
 
 	// ClaimTask begins control of task execution in this scheduler.
 	ClaimTask(task *StoreTask, meta *StoreTaskMeta) error
+
+	// UpdateTask will update the concurrency and the runners for a task
+	UpdateTask(task *StoreTask, meta *StoreTaskMeta) error
 
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
@@ -267,6 +271,32 @@ func (s *TickScheduler) ClaimTask(task *StoreTask, meta *StoreTaskMeta) (err err
 	return nil
 }
 
+func (s *TickScheduler) UpdateTask(task *StoreTask, meta *StoreTaskMeta) error {
+	s.schedulerMu.Lock()
+	defer s.schedulerMu.Unlock()
+
+	tid := task.ID.String()
+	ts, ok := s.taskSchedulers[tid]
+	if !ok {
+		return ErrTaskNotClaimed
+	}
+	ts.Cancel()
+
+	nts, err := newTaskScheduler(s.ctx, s.wg, s, task, meta, s.metrics)
+	if err != nil {
+		return err
+	}
+
+	s.taskSchedulers[tid] = nts
+
+	next, hasQueue := ts.NextDue()
+	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
+		ts.Work()
+	}
+
+	return nil
+}
+
 func (s *TickScheduler) ReleaseTask(taskID platform.ID) error {
 	s.schedulerMu.Lock()
 	defer s.schedulerMu.Unlock()
@@ -365,7 +395,7 @@ func (ts *taskScheduler) WorkCurrentlyRunning(meta *StoreTaskMeta) error {
 	for _, cr := range meta.CurrentlyRunning {
 		foundWorker := false
 		for _, r := range ts.runners {
-			qr := QueuedRun{TaskID: ts.task.ID, RunID: cr.RunID, Now: cr.Now}
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.RunID), Now: cr.Now}
 			if r.RestartRun(qr) {
 				foundWorker = true
 				break
@@ -580,24 +610,29 @@ func (r *runner) executeAndWait(qr QueuedRun, runLogger *zap.Logger) {
 }
 
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
-	switch s {
-	case RunStarted:
-		r.ts.metrics.StartRun(r.task.ID.String())
-	case RunSuccess:
-		r.ts.metrics.FinishRun(r.task.ID.String(), true)
-	case RunFail, RunCanceled:
-		r.ts.metrics.FinishRun(r.task.ID.String(), false)
-	default:
-		// We are deliberately not handling RunQueued yet.
-		// There is not really a notion of being queued in this runner architecture.
-		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
-	}
-
 	rlb := RunLogBase{
 		Task:            r.task,
 		RunID:           qr.RunID,
 		RunScheduledFor: qr.Now,
 		RequestedAt:     qr.RequestedAt,
+	}
+
+	switch s {
+	case RunStarted:
+		r.ts.metrics.StartRun(r.task.ID.String())
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Script))
+	case RunSuccess:
+		r.ts.metrics.FinishRun(r.task.ID.String(), true)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Completed successfully")
+	case RunFail:
+		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Failed")
+	case RunCanceled:
+		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.logWriter.AddRunLog(r.ctx, rlb, time.Now(), "Canceled")
+	default: // We are deliberately not handling RunQueued yet.
+		// There is not really a notion of being queued in this runner architecture.
+		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
 	}
 
 	// Arbitrarily chosen short time limit for how fast the log write must complete.

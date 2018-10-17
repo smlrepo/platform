@@ -21,7 +21,7 @@ interface Props {
   autoRefresh: number
   manualRefresh: number
   onZoom: (range: TimeRange) => void
-  onSummonOverlay: () => void
+  onEditCell: () => void
 }
 
 @ErrorHandling
@@ -40,26 +40,25 @@ class ViewComponent extends Component<Props> {
       templates,
     } = this.props
 
-    if (view.properties.shape === ViewShape.Empty) {
-      return this.emptyGraph
+    switch (view.properties.type) {
+      case ViewShape.Empty:
+      case ViewType.LogViewer:
+        return this.emptyGraph
+      case ViewType.Markdown:
+        return <Markdown text={text} />
+      default:
+        return (
+          <RefreshingView
+            viewID={view.id}
+            onZoom={onZoom}
+            timeRange={timeRange}
+            templates={templates}
+            autoRefresh={autoRefresh}
+            properties={view.properties}
+            manualRefresh={manualRefresh}
+          />
+        )
     }
-
-    if (view.properties.type === ViewType.Markdown) {
-      return <Markdown text={text} />
-    }
-
-    return (
-      <RefreshingView
-        viewID={view.id}
-        onZoom={onZoom}
-        timeRange={timeRange}
-        templates={templates}
-        autoRefresh={autoRefresh}
-        properties={view.properties}
-        manualRefresh={manualRefresh}
-        grabDataForDownload={this.grabDataForDownload}
-      />
-    )
   }
 
   private get emptyGraph(): JSX.Element {
@@ -67,16 +66,12 @@ class ViewComponent extends Component<Props> {
       <div className="graph-empty">
         <button
           className="no-query--button btn btn-md btn-primary"
-          onClick={this.props.onSummonOverlay}
+          onClick={this.props.onEditCell}
         >
           <span className="icon plus" /> Add Data
         </button>
       </div>
     )
-  }
-
-  private grabDataForDownload = cellData => {
-    this.setState({cellData})
   }
 }
 

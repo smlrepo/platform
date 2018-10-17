@@ -85,8 +85,8 @@ export type RefreshingViewProperties =
 export type ViewProperties =
   | RefreshingViewProperties
   | MarkdownView
-  | LogViewerView
   | EmptyView
+  | LogViewerView
 
 export interface EmptyView {
   type: ViewShape.Empty
@@ -269,4 +269,8 @@ export interface DashboardSwitcherLink {
 export interface DashboardSwitcherLinks {
   active?: DashboardSwitcherLink
   links: DashboardSwitcherLink[]
+}
+
+export interface ViewParams {
+  type: ViewType
 }

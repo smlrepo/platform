@@ -82,6 +82,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.ViewHandler = NewViewHandler()
 	h.ViewHandler.ViewService = b.ViewService
+	h.ViewHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.MacroHandler = NewMacroHandler()
 	h.MacroHandler.MacroService = b.MacroService
@@ -100,6 +101,7 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 
 	h.TaskHandler = NewTaskHandler(b.Logger)
 	h.TaskHandler.TaskService = b.TaskService
+	h.TaskHandler.UserResourceMappingService = b.UserResourceMappingService
 
 	h.WriteHandler = NewWriteHandler(b.PointsWriter)
 	h.WriteHandler.AuthorizationService = b.AuthorizationService
@@ -130,6 +132,7 @@ var apiLinks = map[string]interface{}{
 	"auths":      "/api/v2/authorizations",
 	"buckets":    "/api/v2/buckets",
 	"users":      "/api/v2/users",
+	"me":         "/api/v2/me",
 	"tasks":      "/api/v2/tasks",
 	"macros":     "/api/v2/macros",
 	"query": map[string]string{
@@ -195,6 +198,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/users") {
+		h.UserHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/me") {
 		h.UserHandler.ServeHTTP(w, r)
 		return
 	}

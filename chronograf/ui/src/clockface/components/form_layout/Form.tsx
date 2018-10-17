@@ -1,6 +1,7 @@
 // Libraries
 import React, {Component, ComponentClass} from 'react'
 import _ from 'lodash'
+import classnames from 'classnames'
 
 // Components
 import FormElement from 'src/clockface/components/form_layout/FormElement'
@@ -11,7 +12,9 @@ import FormFooter from 'src/clockface/components/form_layout/FormFooter'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: JSX.Element[]
+  children: JSX.Element[] | JSX.Element
+  style?: React.CSSProperties
+  className?: string
 }
 
 @ErrorHandling
@@ -35,11 +38,23 @@ class Form extends Component<Props> {
   }).join(', ')
 
   public render() {
-    const {children} = this.props
+    const {children, style} = this.props
 
     this.validateChildren()
 
-    return <div className="form--wrapper">{children}</div>
+    return (
+      <div style={style} className={this.formWrapperClass}>
+        {children}
+      </div>
+    )
+  }
+
+  private get formWrapperClass(): string {
+    const {className} = this.props
+
+    return classnames('form--wrapper', {
+      [`${className}`]: className,
+    })
   }
 
   private validateChildren = (): void => {

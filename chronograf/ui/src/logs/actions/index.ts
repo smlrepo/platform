@@ -1,24 +1,69 @@
-import {Namespace} from 'src/types'
-import {Source} from 'src/types/v2'
-import {getSource} from 'src/sources/apis/v2'
+// Utils
+import _ from 'lodash'
 import {getDeep} from 'src/utils/wrappers'
-import AJAX from 'src/utils/ajax'
+import {serverToUIConfig, uiToServerConfig} from 'src/logs/utils/config'
+import {
+  buildInfiniteScrollLogQuery,
+  buildTableQueryConfig,
+} from 'src/logs/utils/queryBuilder'
+import {transformFluxLogsResponse} from 'src/logs/utils'
 
-import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
+// APIs
+import {
+  readViews as readViewsAJAX,
+  createView as createViewAJAX,
+  updateView as updateViewAJAX,
+} from 'src/dashboards/apis/v2/view'
+import {getSource} from 'src/sources/apis/v2'
+import {getBuckets} from 'src/shared/apis/v2/buckets'
+import {getTimeSeries} from 'src/flux/apis'
+
+// Data
+import {logViewData as defaultLogView} from 'src/logs/data/logViewData'
+
+// Types
+import {Dispatch} from 'redux'
+import {ThunkDispatch} from 'redux-thunk'
+import {View, ViewType} from 'src/types/v2/dashboards'
+import {
+  Filter,
+  LogConfig,
+  SearchStatus,
+  State,
+  GetState,
+  TableData,
+} from 'src/types/logs'
+import {Source, Bucket} from 'src/types/v2'
+import {QueryConfig} from 'src/types'
+
+// Constants
+import {
+  DEFAULT_MAX_TAIL_BUFFER_DURATION_MS,
+  defaultTableData,
+} from 'src/logs/constants'
 
 export const INITIAL_LIMIT = 1000
 
 export enum ActionTypes {
   SetSource = 'LOGS_SET_SOURCE',
-  SetNamespaces = 'LOGS_SET_NAMESPACES',
-  SetNamespace = 'LOGS_SET_NAMESPACE',
+  SetBuckets = 'LOGS_SET_BUCKETS',
+  SetBucket = 'LOGS_SET_BUCKET',
   AddFilter = 'LOGS_ADD_FILTER',
   RemoveFilter = 'LOGS_REMOVE_FILTER',
   ChangeFilter = 'LOGS_CHANGE_FILTER',
   ClearFilters = 'LOGS_CLEAR_FILTERS',
   SetConfig = 'SET_CONFIG',
   SetSearchStatus = 'SET_SEARCH_STATUS',
+  SetTableQueryConfig = 'LOGS_SET_TABLE_QUERY_CONFIG',
+  SetCurrentTailUpperBound = 'SET_CURRENT_TAIL_UPPER_BOUND',
+  SetNextTailLowerBound = 'SET_NEXT_TAIL_LOWER_BOUND',
+  ClearTableData = 'CLEAR_TABLE_DATA',
+  SetTableForwardData = 'SET_TABLE_FORWARD_DATA',
+  SetTableBackwardData = 'SET_TABLE_BACKWARD_DATA',
 }
+
+const getIsTruncated = (state: State): boolean =>
+  state.logs.logConfig.isTruncated
 
 export interface AddFilterAction {
   type: ActionTypes.AddFilter
@@ -53,17 +98,17 @@ interface SetSourceAction {
   }
 }
 
-interface SetNamespacesAction {
-  type: ActionTypes.SetNamespaces
+interface SetBucketsAction {
+  type: ActionTypes.SetBuckets
   payload: {
-    namespaces: Namespace[]
+    buckets: Bucket[]
   }
 }
 
-interface SetNamespaceAction {
-  type: ActionTypes.SetNamespace
+interface SetBucketAction {
+  type: ActionTypes.SetBucket
   payload: {
-    namespace: Namespace
+    bucket: Bucket
   }
 }
 
@@ -81,16 +126,60 @@ interface SetSearchStatusAction {
   }
 }
 
+interface SetTableQueryConfigAction {
+  type: ActionTypes.SetTableQueryConfig
+  payload: {
+    queryConfig: QueryConfig
+  }
+}
+
+interface SetCurrentTailUpperBoundAction {
+  type: ActionTypes.SetCurrentTailUpperBound
+  payload: {
+    upper: number | undefined
+  }
+}
+interface SetNextTailLowerBoundAction {
+  type: ActionTypes.SetNextTailLowerBound
+  payload: {
+    lower: number | undefined
+  }
+}
+
+export interface ClearTableDataAction {
+  type: ActionTypes.ClearTableData
+}
+
+export interface SetTableForwardDataAction {
+  type: ActionTypes.SetTableForwardData
+  payload: {
+    data: TableData
+  }
+}
+
+export interface SetTableBackwardDataAction {
+  type: ActionTypes.SetTableBackwardData
+  payload: {
+    data: TableData
+  }
+}
+
 export type Action =
   | SetSourceAction
-  | SetNamespacesAction
-  | SetNamespaceAction
+  | SetBucketsAction
+  | SetBucketAction
   | AddFilterAction
   | RemoveFilterAction
   | ChangeFilterAction
   | ClearFiltersAction
   | SetConfigAction
   | SetSearchStatusAction
+  | SetTableQueryConfigAction
+  | SetCurrentTailUpperBoundAction
+  | SetNextTailLowerBoundAction
+  | ClearTableDataAction
+  | SetTableForwardDataAction
+  | SetTableBackwardDataAction
 
 /**
  * Sets the search status corresponding to the current fetch request.
@@ -127,57 +216,53 @@ export const removeFilter = (id: string): RemoveFilterAction => ({
   payload: {id},
 })
 
-export const setNamespaceAsync = (namespace: Namespace) => async (
+export const setBucketAsync = (bucket: Bucket) => async (
   dispatch
 ): Promise<void> => {
   dispatch({
-    type: ActionTypes.SetNamespace,
-    payload: {namespace},
+    type: ActionTypes.SetBucket,
+    payload: {bucket},
   })
+
+  dispatch(setTableQueryConfigAsync())
 }
 
-export const setNamespaces = (
-  namespaces: Namespace[]
-): SetNamespacesAction => ({
-  type: ActionTypes.SetNamespaces,
+export const setBuckets = (buckets: Bucket[]): SetBucketsAction => ({
+  type: ActionTypes.SetBuckets,
   payload: {
-    namespaces,
+    buckets,
   },
 })
 
-export const populateNamespacesAsync = (
+export const populateBucketsAsync = (
   bucketsLink: string,
   source: Source = null
 ) => async (dispatch): Promise<void> => {
   try {
-    const {data: buckets} = await AJAX({url: bucketsLink, method: 'GET'})
-    const namespaces: Namespace[] = buckets.map(b => ({
-      database: b.name,
-      retentionPolicy: b.rp,
-    }))
+    const buckets = await getBuckets(bucketsLink)
 
-    if (namespaces && namespaces.length > 0) {
-      dispatch(setNamespaces(namespaces))
+    if (buckets && buckets.length > 0) {
+      dispatch(setBuckets(buckets))
       if (source && source.telegraf) {
-        const defaultNamespace = namespaces.find(
-          namespace => namespace.database === source.telegraf
+        const defaultBucket = buckets.find(
+          bucket => bucket.name === source.telegraf
         )
 
-        await dispatch(setNamespaceAsync(defaultNamespace))
+        await dispatch(setBucketAsync(defaultBucket))
       } else {
-        await dispatch(setNamespaceAsync(namespaces[0]))
+        await dispatch(setBucketAsync(buckets[0]))
       }
     }
   } catch (e) {
-    dispatch(setNamespaces([]))
-    dispatch(setNamespaceAsync(null))
-    throw new Error('Failed to populate namespaces')
+    dispatch(setBuckets([]))
+    dispatch(setBucketAsync(null))
+    throw new Error('Failed to populate buckets')
   }
 }
 
-export const getSourceAndPopulateNamespacesAsync = (
-  sourceURL: string
-) => async (dispatch): Promise<void> => {
+export const getSourceAndPopulateBucketsAsync = (sourceURL: string) => async (
+  dispatch
+): Promise<void> => {
   const source = await getSource(sourceURL)
 
   const bucketsLink = getDeep<string | null>(source, 'links.buckets', null)
@@ -186,12 +271,57 @@ export const getSourceAndPopulateNamespacesAsync = (
     dispatch(setSource(source))
 
     try {
-      await dispatch(populateNamespacesAsync(bucketsLink, source))
-      await dispatch(setSearchStatus(SearchStatus.UpdatingSource))
+      await dispatch(populateBucketsAsync(bucketsLink, source))
+      await dispatch(clearSearchData(SearchStatus.UpdatingSource))
     } catch (e) {
-      await dispatch(setSearchStatus(SearchStatus.SourceError))
+      await dispatch(clearSearchData(SearchStatus.SourceError))
     }
   }
+}
+
+export const getLogConfigAsync = (url: string) => async (
+  dispatch: Dispatch<SetConfigAction>,
+  getState: GetState
+) => {
+  const state = getState()
+  const isTruncated = getIsTruncated(state)
+  const views = await readViewsAJAX(url, {type: ViewType.LogViewer})
+  const logView: View = getDeep(views, '0', defaultLogView)
+
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
+
+  await dispatch(setConfig(logConfig))
+}
+
+export const createLogConfigAsync = (
+  url: string,
+  newConfig: LogConfig
+) => async (dispatch: Dispatch<SetConfigAction>) => {
+  const {isTruncated} = newConfig
+  const {id, ...newLogView} = uiToServerConfig(newConfig)
+  const logView = await createViewAJAX(url, newLogView)
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
+  await dispatch(setConfig(logConfig))
+}
+
+export const updateLogConfigAsync = (updatedConfig: LogConfig) => async (
+  dispatch: Dispatch<SetConfigAction>
+) => {
+  const {isTruncated, link} = updatedConfig
+  const updatedView = uiToServerConfig(updatedConfig)
+  const logView = await updateViewAJAX(link, updatedView)
+
+  const logConfig = {
+    ...serverToUIConfig(logView),
+    isTruncated,
+  }
+  await dispatch(setConfig(logConfig))
 }
 
 export const setConfig = (logConfig: LogConfig): SetConfigAction => {
@@ -202,3 +332,200 @@ export const setConfig = (logConfig: LogConfig): SetConfigAction => {
     },
   }
 }
+
+// Table Data
+/**
+ * Sets tableInfiniteData with empty 'forward' and 'backward' table data.
+ */
+export const clearTableData = () => ({
+  type: ActionTypes.ClearTableData,
+})
+
+export const clearSearchData = (
+  searchStatus: SearchStatus
+) => async dispatch => {
+  await dispatch(setSearchStatus(SearchStatus.Clearing))
+  await dispatch(clearTableData())
+  await dispatch(setSearchStatus(searchStatus))
+}
+
+/**
+ * Gets the maximum duration that the tail buffer should accumulate
+ *  before being flushed to the 'backward' table data.
+ * @param state the application state
+ */
+const getMaxTailBufferDurationMs = (state: State): number => {
+  return getDeep<number>(
+    state,
+    'logs.maxTailBufferDurationMs',
+    DEFAULT_MAX_TAIL_BUFFER_DURATION_MS
+  )
+}
+
+export const setTableForwardData = (
+  data: TableData
+): SetTableForwardDataAction => ({
+  type: ActionTypes.SetTableForwardData,
+  payload: {data},
+})
+
+export const setTableBackwardData = (
+  data: TableData
+): SetTableBackwardDataAction => ({
+  type: ActionTypes.SetTableBackwardData,
+  payload: {data},
+})
+
+/**
+ * Sets the upper bound of time up until which logs were fetched for the current tail chunk.
+ * @param upper the point in time up until which the current tail was fetched.
+ */
+export const setCurrentTailUpperBound = (
+  upper: number
+): SetCurrentTailUpperBoundAction => ({
+  type: ActionTypes.SetCurrentTailUpperBound,
+  payload: {upper},
+})
+
+/**
+ * Sets the lower bound of time on the current tail chunk fetch query.
+ * @param lower the point in time starting from which to begin the next tail fetch.
+ */
+export const setNextTailLowerBound = (
+  lower: number
+): SetNextTailLowerBoundAction => ({
+  type: ActionTypes.SetNextTailLowerBound,
+  payload: {lower},
+})
+
+export const setTableQueryConfig = (
+  queryConfig: QueryConfig
+): SetTableQueryConfigAction => ({
+  type: ActionTypes.SetTableQueryConfig,
+  payload: {queryConfig},
+})
+
+export const fetchTailAsync = () => async (
+  dispatch:
+    | Dispatch<
+        | SetTableBackwardDataAction
+        | SetTableForwardDataAction
+        | SetNextTailLowerBoundAction
+      >
+    | ThunkDispatch<typeof flushTailBuffer>,
+  getState: GetState
+): Promise<void> => {
+  const state = getState()
+
+  const {
+    logs: {
+      nextTailLowerBound: tailLowerBound,
+      tableQueryConfig,
+      currentSource,
+      filters,
+    },
+  } = getState()
+
+  const params = [currentSource, tableQueryConfig]
+
+  if (_.every(params)) {
+    if (!tailLowerBound) {
+      throw new Error('tail lower bound is not set')
+    }
+    const upper = new Date().toISOString()
+    const lower = new Date(tailLowerBound).toISOString()
+
+    const upperUTC = Date.parse(upper)
+    dispatch(setCurrentTailUpperBound(upperUTC))
+
+    const query = buildInfiniteScrollLogQuery(
+      lower,
+      upper,
+      tableQueryConfig,
+      filters
+    )
+    const {
+      links: {query: queryLink},
+    } = currentSource
+    const response = await getTimeSeries(queryLink, query)
+
+    if (
+      _.isEmpty(response.tables) ||
+      getDeep(response, 'tables.0.name', null) === 'Error'
+    ) {
+      return
+    }
+    const columnNames: string[] = tableQueryConfig.fields.map(f => f.value)
+    const logSeries: TableData = transformFluxLogsResponse(
+      response,
+      columnNames
+    )
+
+    const currentForwardBufferDuration = upperUTC - tailLowerBound
+    const maxTailBufferDurationMs = getMaxTailBufferDurationMs(state)
+    const isMaxTailBufferDurationExceeded =
+      currentForwardBufferDuration >= maxTailBufferDurationMs
+
+    if (isMaxTailBufferDurationExceeded) {
+      dispatch(flushTailBuffer())
+      await dispatch(setNextTailLowerBound(upperUTC))
+    } else {
+      await dispatch(setTableForwardData(logSeries))
+    }
+  } else {
+    throw new Error(
+      `Missing params required to fetch tail logs. Maybe there's a race condition with setting buckets?`
+    )
+  }
+}
+
+export const flushTailBuffer = () => (
+  dispatch: Dispatch<SetTableBackwardDataAction | SetTableForwardDataAction>,
+  getState: GetState
+) => {
+  const {
+    logs: {
+      tableInfiniteData: {
+        forward: currentTailBuffer,
+        backward: currentBackward,
+      },
+    },
+  } = getState()
+
+  const combinedBackward = combineTableData(currentTailBuffer, currentBackward)
+
+  dispatch(setTableBackwardData(combinedBackward))
+  dispatch(setTableForwardData(defaultTableData))
+}
+
+export const setTableQueryConfigAsync = () => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const state = getState()
+  const bucket = getDeep<Bucket | null>(state, 'logs.currentBucket', null)
+
+  if (bucket) {
+    const queryConfig = buildTableQueryConfig(bucket)
+
+    dispatch(setTableQueryConfig(queryConfig))
+  }
+}
+
+export const clearAllTimeBounds = () => (
+  dispatch: Dispatch<
+    SetCurrentTailUpperBoundAction | SetNextTailLowerBoundAction
+  >
+) => {
+  dispatch(setCurrentTailUpperBound(undefined))
+  dispatch(setNextTailLowerBound(undefined))
+}
+
+/**
+ * Creates new TableData with the concatted TableData values from args of TableData
+ * @param tableDatas
+ */
+const combineTableData = (...tableDatas: TableData[]) => ({
+  columns: tableDatas[0].columns,
+  values: _.flatMap(tableDatas, t => t.values),
+})

@@ -14,6 +14,9 @@ const (
 	Member                UserType     = "member"
 	DashboardResourceType ResourceType = "dashboard"
 	BucketResourceType    ResourceType = "bucket"
+	TaskResourceType      ResourceType = "task"
+	OrgResourceType       ResourceType = "org"
+	ViewResourceType      ResourceType = "view"
 )
 
 // UserResourceMappingService maps the relationships between users and resources
@@ -38,17 +41,17 @@ type UserResourceMapping struct {
 
 // Validate reports any validation errors for the mapping.
 func (m UserResourceMapping) Validate() error {
-	if len(m.ResourceID) == 0 {
+	if !m.ResourceID.Valid() {
 		return errors.New("resourceID is required")
 	}
-	if len(m.UserID) == 0 {
+	if !m.UserID.Valid() {
 		return errors.New("userID is required")
 	}
 	if m.UserType != Owner && m.UserType != Member {
 		return errors.New("a valid user type is required")
 	}
 	switch m.ResourceType {
-	case DashboardResourceType, BucketResourceType:
+	case DashboardResourceType, BucketResourceType, TaskResourceType, OrgResourceType, ViewResourceType:
 	default:
 		return fmt.Errorf("a valid resource type is required")
 	}

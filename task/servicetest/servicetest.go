@@ -6,7 +6,6 @@
 package servicetest
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
@@ -98,7 +97,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if err := sys.ts.CreateTask(sys.Ctx, task); err != nil {
 		t.Fatal(err)
 	}
-	if task.ID == nil {
+	if !task.ID.Valid() {
 		t.Fatal("no task ID set")
 	}
 
@@ -132,10 +131,10 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	found["FindTasks with User filter"] = fs[0]
 
 	for fn, f := range found {
-		if !bytes.Equal(f.Organization, orgID) {
+		if f.Organization != orgID {
 			t.Fatalf("%s: wrong organization returned; want %s, got %s", fn, orgID.String(), f.Organization.String())
 		}
-		if !bytes.Equal(f.Owner.ID, userID) {
+		if f.Owner.ID != userID {
 			t.Fatalf("%s: wrong user returned; want %s, got %s", fn, userID.String(), f.Owner.ID.String())
 		}
 
@@ -148,17 +147,23 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if f.Every != "" {
 			t.Fatalf(`%s: wrong every returned; want "", got %q`, fn, f.Every)
 		}
+		if fn == "FindTaskByID" {
+			// TODO(mr): do this check for every fn, not only FindTaskByID.
+			if f.Status != string(backend.DefaultTaskStatus) {
+				t.Fatalf(`%s: wrong default task status; want %q, got %q`, fn, backend.DefaultTaskStatus, f.Status)
+			}
+		}
 	}
 
 	// Update task.
 	newFlux := fmt.Sprintf(scriptFmt, 99)
-	origID := append(platform.ID(nil), f.ID...)
+	origID := f.ID
 	f, err = sys.ts.UpdateTask(sys.Ctx, origID, platform.TaskUpdate{Flux: &newFlux})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(origID, f.ID) {
+	if origID != f.ID {
 		t.Fatalf("task ID unexpectedly changed during update, from %s to %s", origID.String(), f.ID.String())
 	}
 	if f.Flux != newFlux {
@@ -171,8 +176,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Task should not be returned.
-	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != nil {
-		t.Fatal(err)
+	if _, err := sys.ts.FindTaskByID(sys.Ctx, origID); err != backend.ErrTaskNotFound {
+		t.Fatalf("expected %v, got %v", backend.ErrTaskNotFound, err)
 	}
 }
 
@@ -195,7 +200,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(rc.Created.TaskID, task.ID) {
+	if rc.Created.TaskID != task.ID {
 		t.Fatalf("unexpected created run: got %s, want %s", rc.Created.TaskID.String(), task.ID.String())
 	}
 	runID := rc.Created.RunID
@@ -228,10 +233,10 @@ func testTaskRuns(t *testing.T, sys *System) {
 	}
 
 	r := runs[0]
-	if !bytes.Equal(r.ID, runID) {
+	if r.ID != runID {
 		t.Errorf("expected to find run with ID %s, got %s", runID.String(), r.ID.String())
 	}
-	if !bytes.Equal(r.TaskID, task.ID) {
+	if r.TaskID != task.ID {
 		t.Errorf("expected run to have task ID %s, got %s", task.ID.String(), r.TaskID.String())
 	}
 	if want := startedAt.UTC().Format(time.RFC3339); r.StartedAt != want {
@@ -361,7 +366,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			tid := tasks[len(tasks)-1].ID
 			if _, err := sys.S.CreateNextRun(sys.Ctx, tid, math.MaxInt64); err != nil {
 				// This may have errored due to the task being deleted. Check if the task still exists.
-				if t, err2 := sys.S.FindTaskByID(sys.Ctx, tid); err2 == nil && t == nil {
+				if _, err2 := sys.S.FindTaskByID(sys.Ctx, tid); err2 == backend.ErrTaskNotFound {
 					// It was deleted. Just continue.
 					continue
 				}

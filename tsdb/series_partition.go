@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/models"
 	"github.com/influxdata/platform/pkg/rhh"
 	"go.uber.org/zap"
@@ -339,6 +339,13 @@ func (p *SeriesPartition) DeleteSeriesID(id SeriesID) error {
 		return err
 	}
 
+	// Flush active segment write.
+	if segment := p.activeSegment(); segment != nil {
+		if err := segment.Flush(); err != nil {
+			return err
+		}
+	}
+
 	// Mark tombstone in memory.
 	p.index.Delete(id)
 
@@ -383,14 +390,19 @@ func (p *SeriesPartition) Series(id SeriesID) ([]byte, models.Tags) {
 
 // FindIDBySeriesKey return the series id for the series key.
 func (p *SeriesPartition) FindIDBySeriesKey(key []byte) SeriesID {
+	return p.FindIDTypedBySeriesKey(key).SeriesID()
+}
+
+// FindIDTypedBySeriesKey return the typed series id for the series key.
+func (p *SeriesPartition) FindIDTypedBySeriesKey(key []byte) SeriesIDTyped {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
-		return SeriesID{}
+		return SeriesIDTyped{}
 	}
 	id := p.index.FindIDBySeriesKey(p.segments, key)
 	p.mu.RUnlock()
-	return id.SeriesID()
+	return id
 }
 
 // SeriesCount returns the number of series.
@@ -580,7 +592,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 
 		if err := segment.ForEachEntry(func(flag uint8, id SeriesIDTyped, offset int64, key []byte) error {
 			// Make sure we don't go past the offset where the compaction began.
-			if offset >= index.maxOffset {
+			if offset > index.maxOffset {
 				return errDone
 			}
 
@@ -604,13 +616,13 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 
 			untypedID := id.SeriesID()
 
+			// Save max series identifier processed.
+			hdr.MaxSeriesID, hdr.MaxOffset = untypedID, offset
+
 			// Ignore entry if tombstoned.
 			if index.IsDeleted(untypedID) {
 				return nil
 			}
-
-			// Save max series identifier processed.
-			hdr.MaxSeriesID, hdr.MaxOffset = untypedID, offset
 
 			// Insert into maps.
 			c.insertIDOffsetMap(idOffsetMap, hdr.Capacity, untypedID, offset)

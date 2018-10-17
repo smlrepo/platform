@@ -1,86 +1,144 @@
+// Libraries
 import React, {Component} from 'react'
+import uuid from 'uuid'
 import {connect} from 'react-redux'
-import {withRouter, InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 
-import {searchToFilters} from 'src/logs/utils/search'
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
-import {NOW} from 'src/logs/constants'
-
-import {
-  getSourceAndPopulateNamespacesAsync,
-  setNamespaceAsync,
-  addFilter,
-  removeFilter,
-  changeFilter,
-  clearFilters,
-  setSearchStatus,
-  setConfig,
-} from 'src/logs/actions'
-import {getSourcesAsync} from 'src/shared/actions/sources'
+// Components
 import LogsHeader from 'src/logs/components/LogsHeader'
-import LoadingStatus from 'src/logs/components/loading_status/LoadingStatus'
 import SearchBar from 'src/logs/components/LogsSearchBar'
 import FilterBar from 'src/logs/components/logs_filter_bar/LogsFilterBar'
-import {Source} from 'src/types/v2'
-import {Namespace} from 'src/types'
+import OverlayTechnology from 'src/clockface/components/overlays/OverlayTechnology'
+import OptionsOverlay from 'src/logs/components/options_overlay/OptionsOverlay'
+import LogsTable from 'src/logs/components/logs_table/LogsTable'
 
-import {Filter, LogConfig, SearchStatus} from 'src/types/logs'
+// Actions
+import * as logActions from 'src/logs/actions'
+import {getSourcesAsync} from 'src/shared/actions/sources'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
-interface Props {
+// Utils
+import {searchToFilters} from 'src/logs/utils/search'
+import {getDeep} from 'src/utils/wrappers'
+import {
+  applyChangesToTableData,
+  isEmptyInfiniteData,
+} from 'src/logs/utils/table'
+
+// Constants
+import {NOW, DEFAULT_TAIL_CHUNK_DURATION_MS} from 'src/logs/constants'
+
+// Types
+import {Source, Links, Bucket, AppState} from 'src/types/v2'
+import {
+  Filter,
+  LogConfig,
+  SearchStatus,
+  SeverityFormat,
+  SeverityLevelColor,
+  SeverityFormatOptions,
+  LogsTableColumn,
+  TableData,
+} from 'src/types/logs'
+
+// Connected Log Config
+interface TableConfigStateProps {
+  links: Links
   sources: Source[]
-  currentSource: Source | null
-  currentNamespaces: Namespace[]
-  currentNamespace: Namespace
-  getSourceAndPopulateNamespaces: typeof getSourceAndPopulateNamespacesAsync
-  getSources: () => void
-  setNamespaceAsync: (namespace: Namespace) => void
-  addFilter: (filter: Filter) => void
-  removeFilter: (id: string) => void
-  changeFilter: (id: string, operator: string, value: string) => void
-  clearFilters: () => void
-  updateConfig: typeof setConfig
-  router: InjectedRouter
   filters: Filter[]
   logConfig: LogConfig
   searchStatus: SearchStatus
-  setSearchStatus: typeof setSearchStatus
+  currentBucket: Bucket
+  currentSource: Source | null
+  currentBuckets: Bucket[]
 }
+
+interface DispatchTableConfigProps {
+  notify: typeof notifyAction
+  getConfig: typeof logActions.getLogConfigAsync
+  getSources: typeof getSourcesAsync
+  addFilter: typeof logActions.addFilter // TODO: update addFilters
+  updateConfig: typeof logActions.updateLogConfigAsync
+  createConfig: typeof logActions.createLogConfigAsync
+  removeFilter: typeof logActions.removeFilter
+  changeFilter: typeof logActions.changeFilter
+  clearFilters: typeof logActions.clearFilters
+  setSearchStatus: typeof logActions.setSearchStatus
+  setBucketAsync: typeof logActions.setBucketAsync
+  getSourceAndPopulateBuckets: typeof logActions.getSourceAndPopulateBucketsAsync
+}
+
+// Connected Table Data
+interface TableDataStateProps {
+  tableInfiniteData: {
+    forward: TableData
+    backward: TableData
+  }
+  currentTailUpperBound: number | undefined
+  nextTailLowerBound: number | undefined
+}
+
+interface DispatchTableDataProps {
+  fetchTailAsync: typeof logActions.fetchTailAsync
+  flushTailBuffer: typeof logActions.flushTailBuffer
+  setNextTailLowerBound: typeof logActions.setNextTailLowerBound
+  clearSearchData: typeof logActions.clearSearchData
+}
+
+type StateProps = TableConfigStateProps & TableDataStateProps
+type DispatchProps = DispatchTableConfigProps & DispatchTableDataProps
+type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   liveUpdating: boolean
+  isOverlayVisible: boolean
 }
 
 const RELATIVE_TIME = 0
 
 class LogsPage extends Component<Props, State> {
+  private interval: number
   constructor(props: Props) {
     super(props)
 
     this.state = {
       liveUpdating: false,
+      isOverlayVisible: false,
     }
   }
 
-  public async componentDidUpdate() {
+  public componentDidUpdate() {
     const {router} = this.props
     if (!this.props.sources || this.props.sources.length === 0) {
       return router.push(`/manage-sources?redirectPath=${location.pathname}`)
     }
+
+    this.handleLoadingStatus()
   }
 
   public async componentDidMount() {
     try {
       await this.props.getSources()
       await this.setCurrentSource()
+      await this.props.getConfig(this.configLink)
+
+      if (this.props.searchStatus !== SearchStatus.SourceError) {
+        this.props.setSearchStatus(SearchStatus.Loading)
+        this.fetchNewDataset()
+      }
     } catch (e) {
-      console.error('Failed to get sources and namespaces for logs')
+      console.error('Failed to get sources and buckets for logs')
     }
   }
 
   public render() {
-    const {filters, searchStatus} = this.props
-
+    const {
+      notify,
+      filters,
+      searchStatus,
+      currentTailUpperBound,
+      nextTailLowerBound,
+    } = this.props
     return (
       <>
         <div className="page">
@@ -101,11 +159,131 @@ class LogsPage extends Component<Props, State> {
               onUpdateTruncation={this.handleUpdateTruncation}
               isTruncated={this.isTruncated}
             />
-            <LoadingStatus status={searchStatus} lower={0} upper={0} />
+            <LogsTable
+              data={this.tableData}
+              onScrollVertical={this.handleVerticalScroll}
+              onScrolledToTop={this.handleScrollToTop}
+              isScrolledToTop={false}
+              isTruncated={this.isTruncated}
+              onTagSelection={this.handleTagSelection}
+              scrollToRow={0}
+              tableColumns={this.tableColumns}
+              severityFormat={this.severityFormat}
+              severityLevelColors={this.severityLevelColors}
+              hasScrolled={false}
+              tableInfiniteData={this.props.tableInfiniteData}
+              onChooseCustomTime={this.handleChooseCustomTime}
+              notify={notify}
+              searchStatus={searchStatus}
+              upper={currentTailUpperBound || nextTailLowerBound}
+              lower={nextTailLowerBound}
+            />
           </div>
         </div>
+        {this.configOverlay}
       </>
     )
+  }
+
+  private get header(): JSX.Element {
+    const {sources, currentSource, currentBuckets, currentBucket} = this.props
+
+    return (
+      <LogsHeader
+        liveUpdating={this.isLiveUpdating}
+        availableSources={sources}
+        onChooseSource={this.handleChooseSource}
+        onChooseBucket={this.handleChooseBucket}
+        currentSource={currentSource}
+        currentBuckets={currentBuckets}
+        currentBucket={currentBucket}
+        onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
+        onShowOptionsOverlay={this.handleToggleOverlay}
+      />
+    )
+  }
+
+  private get configOverlay(): JSX.Element {
+    const {isOverlayVisible} = this.state
+
+    return (
+      <OverlayTechnology visible={isOverlayVisible}>
+        <OptionsOverlay
+          columns={this.tableColumns}
+          severityFormat={this.severityFormat}
+          severityLevelColors={this.severityLevelColors}
+          onSave={this.handleSaveOptions}
+          onDismissOverlay={this.handleToggleOverlay}
+        />
+      </OverlayTechnology>
+    )
+  }
+
+  private get tableData(): TableData {
+    const forwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.forward,
+      this.tableColumns
+    )
+
+    const backwardData = applyChangesToTableData(
+      this.props.tableInfiniteData.backward,
+      this.tableColumns
+    )
+
+    const data = {
+      columns: forwardData.columns,
+      values: [...forwardData.values, ...backwardData.values],
+    }
+    return data
+  }
+
+  private handleLoadingStatus() {
+    if (
+      !this.isClearing &&
+      !isEmptyInfiniteData(this.props.tableInfiniteData)
+    ) {
+      this.props.setSearchStatus(SearchStatus.Loaded)
+    }
+  }
+
+  private get tableColumns(): LogsTableColumn[] {
+    const {logConfig} = this.props
+
+    return getDeep<LogsTableColumn[]>(logConfig, 'tableColumns', [])
+  }
+
+  private get severityLevelColors(): SeverityLevelColor[] {
+    return getDeep<SeverityLevelColor[]>(
+      this.props.logConfig,
+      'severityLevelColors',
+      []
+    )
+  }
+
+  private get severityFormat(): SeverityFormat {
+    return getDeep<SeverityFormat>(
+      this.props.logConfig,
+      'severityFormat',
+      SeverityFormatOptions.DotText
+    )
+  }
+
+  private handleSaveOptions = async (config: Partial<LogConfig>) => {
+    const {logConfig} = this.props
+    const updatedConfig = {
+      ...logConfig,
+      ...config,
+    }
+
+    if (!this.isLogConfigSaved) {
+      await this.props.createConfig(this.configLink, updatedConfig)
+    } else {
+      await this.props.updateConfig(updatedConfig)
+    }
+  }
+
+  private get isLogConfigSaved(): boolean {
+    return this.props.logConfig.id !== null
   }
 
   private setCurrentSource = async () => {
@@ -115,32 +293,10 @@ class LogsPage extends Component<Props, State> {
           return src.default
         }) || this.props.sources[0]
 
-      return await this.props.getSourceAndPopulateNamespaces(source.links.self)
+      return await this.props.getSourceAndPopulateBuckets(source.links.self)
     }
   }
 
-  private get header(): JSX.Element {
-    const {
-      sources,
-      currentSource,
-      currentNamespaces,
-      currentNamespace,
-    } = this.props
-
-    return (
-      <LogsHeader
-        liveUpdating={this.isLiveUpdating}
-        availableSources={sources}
-        onChooseSource={this.handleChooseSource}
-        onChooseNamespace={this.handleChooseNamespace}
-        currentSource={currentSource}
-        currentNamespaces={currentNamespaces}
-        currentNamespace={currentNamespace}
-        onChangeLiveUpdatingStatus={this.handleChangeLiveUpdatingStatus}
-        onShowOptionsOverlay={this.handleToggleOverlay}
-      />
-    )
-  }
   private handleChangeLiveUpdatingStatus = async (): Promise<void> => {
     const {liveUpdating} = this.state
 
@@ -159,15 +315,15 @@ class LogsPage extends Component<Props, State> {
       })
 
     if (this.props.searchStatus === SearchStatus.Loading) {
-      this.updateSearchStatus(SearchStatus.UpdatingFilters)
+      this.updateTableData(SearchStatus.UpdatingFilters)
     } else {
-      this.updateSearchStatus(SearchStatus.Loading)
+      this.updateTableData(SearchStatus.Loading)
     }
   }
 
   private handleFilterDelete = (id: string): void => {
     this.props.removeFilter(id)
-    this.updateSearchStatus(SearchStatus.UpdatingFilters)
+    this.updateTableData(SearchStatus.UpdatingFilters)
   }
 
   private handleFilterChange = async (
@@ -176,13 +332,7 @@ class LogsPage extends Component<Props, State> {
     value: string
   ): Promise<void> => {
     this.props.changeFilter(id, operator, value)
-    this.updateSearchStatus(SearchStatus.UpdatingFilters)
-  }
-
-  private updateSearchStatus(status: SearchStatus) {
-    if (this.props.searchStatus !== SearchStatus.SourceError) {
-      this.props.setSearchStatus(status)
-    }
+    this.updateTableData(SearchStatus.UpdatingFilters)
   }
 
   private handleClearFilters = async (): Promise<void> => {
@@ -191,14 +341,15 @@ class LogsPage extends Component<Props, State> {
 
   private handleChooseSource = async (sourceID: string) => {
     const source = this.props.sources.find(s => s.id === sourceID)
-    this.props.setSearchStatus(SearchStatus.Clearing)
-    await this.props.getSourceAndPopulateNamespaces(source.links.self)
+    await this.clearCurrentSearch(SearchStatus.UpdatingSource)
+    await this.props.getSourceAndPopulateBuckets(source.links.self)
+    this.fetchNewDataset()
   }
 
-  private handleChooseNamespace = async (namespace: Namespace) => {
-    this.props.setSearchStatus(SearchStatus.Clearing)
-    await this.props.setNamespaceAsync(namespace)
-    this.props.setSearchStatus(SearchStatus.UpdatingNamespace)
+  private handleChooseBucket = async (bucket: Bucket) => {
+    await this.clearCurrentSearch(SearchStatus.UpdatingBucket)
+    await this.props.setBucketAsync(bucket)
+    this.fetchNewDataset()
   }
 
   private handleUpdateTruncation = (isTruncated: boolean) => {
@@ -210,6 +361,10 @@ class LogsPage extends Component<Props, State> {
     })
   }
 
+  private get configLink(): string {
+    return getDeep<string>(this.props, 'links.views', '')
+  }
+
   private get isTruncated(): boolean {
     return this.props.logConfig.isTruncated
   }
@@ -217,6 +372,91 @@ class LogsPage extends Component<Props, State> {
   private get isLiveUpdating(): boolean {
     return !!this.state.liveUpdating
   }
+
+  private updateTableData = async (searchStatus: SearchStatus) => {
+    if (this.props.searchStatus === SearchStatus.SourceError) {
+      return
+    }
+
+    await this.clearCurrentSearch(searchStatus)
+    await this.fetchNewDataset()
+  }
+
+  private fetchNewDataset = async () => {
+    if (this.props.searchStatus === SearchStatus.SourceError) {
+      return
+    }
+
+    this.startLogsTailFetchingInterval()
+  }
+
+  private clearCurrentSearch = async (searchStatus: SearchStatus) => {
+    this.clearTailInterval()
+    await this.props.clearSearchData(searchStatus)
+  }
+
+  private startLogsTailFetchingInterval = () => {
+    this.flushTailBuffer()
+    this.clearTailInterval()
+
+    this.props.setNextTailLowerBound(Date.now())
+
+    this.interval = window.setInterval(
+      this.handleTailFetchingInterval,
+      DEFAULT_TAIL_CHUNK_DURATION_MS
+    )
+
+    this.setState({liveUpdating: true})
+  }
+
+  private flushTailBuffer(): void {
+    this.props.flushTailBuffer()
+  }
+
+  private handleTailFetchingInterval = async () => {
+    if (this.isClearing) {
+      return
+    }
+
+    await this.props.fetchTailAsync()
+  }
+
+  private clearTailInterval = () => {
+    if (this.interval) {
+      clearInterval(this.interval)
+      this.interval = null
+    }
+  }
+
+  private get isClearing(): boolean {
+    switch (this.props.searchStatus) {
+      case SearchStatus.Clearing:
+      case SearchStatus.None:
+        return true
+    }
+
+    return false
+  }
+
+  private handleTagSelection = (selection: {tag: string; key: string}) => {
+    this.props.addFilter({
+      id: uuid.v4(),
+      key: selection.key,
+      value: selection.tag,
+      operator: '==',
+    })
+    this.updateTableData(SearchStatus.UpdatingFilters)
+  }
+
+  /**
+   * Handle scrolling to the top and resuming logs tail
+   */
+  private handleScrollToTop = () => {}
+
+  /**
+   * Handle pausing logs tail on vertical scroll
+   */
+  private handleVerticalScroll = () => {}
 
   /**
    * Handle choosing a custom time
@@ -240,45 +480,58 @@ class LogsPage extends Component<Props, State> {
     // TODO: handle updating time in LogState
   }
 
-  /**
-   * Toggle log config options overlay visibilty
-   */
-  private handleToggleOverlay = (): void => {}
+  private handleToggleOverlay = (): void => {
+    this.setState({isOverlayVisible: !this.state.isOverlayVisible})
+  }
 }
 
-const mapStateToProps = ({
+const mstp = ({
   sources,
+  links,
   logs: {
     currentSource,
-    currentNamespaces,
-    currentNamespace,
+    currentBuckets,
+    currentBucket,
     filters,
     logConfig,
     searchStatus,
+    tableInfiniteData,
+    nextTailLowerBound,
+    currentTailUpperBound,
   },
-}) => ({
+}: AppState): StateProps => ({
+  links,
   sources,
-  currentSource,
-  currentNamespaces,
-  currentNamespace,
   filters,
   logConfig,
   searchStatus,
+  currentSource,
+  currentBucket,
+  currentBuckets,
+  tableInfiniteData,
+  nextTailLowerBound,
+  currentTailUpperBound,
 })
 
-const mapDispatchToProps = {
-  getSourceAndPopulateNamespaces: getSourceAndPopulateNamespacesAsync,
-  getSources: getSourcesAsync,
-  setNamespaceAsync,
-  setSearchStatus,
-  addFilter,
-  removeFilter,
-  changeFilter,
-  clearFilters,
-  updateConfig: setConfig,
+const mdtp: DispatchProps = {
   notify: notifyAction,
+  getSources: getSourcesAsync,
+  addFilter: logActions.addFilter,
+  updateConfig: logActions.updateLogConfigAsync,
+  createConfig: logActions.createLogConfigAsync,
+  removeFilter: logActions.removeFilter,
+  changeFilter: logActions.changeFilter,
+  clearFilters: logActions.clearFilters,
+  getConfig: logActions.getLogConfigAsync,
+  setSearchStatus: logActions.setSearchStatus,
+  setBucketAsync: logActions.setBucketAsync,
+  getSourceAndPopulateBuckets: logActions.getSourceAndPopulateBucketsAsync,
+  fetchTailAsync: logActions.fetchTailAsync,
+  flushTailBuffer: logActions.flushTailBuffer,
+  setNextTailLowerBound: logActions.setNextTailLowerBound,
+  clearSearchData: logActions.clearSearchData,
 }
 
-export default withRouter(
-  connect(mapStateToProps, mapDispatchToProps)(LogsPage)
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(
+  withRouter(LogsPage)
 )

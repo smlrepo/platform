@@ -24,7 +24,9 @@ const initialState: Links = {
   users: '',
   write: '',
   macros: '',
+  views: '',
   defaultDashboard: '',
+  me: '',
 }
 
 const linksReducer = (state = initialState, action: Action): Links => {

@@ -9,13 +9,17 @@ import {
   SetConfigAction,
 } from 'src/logs/actions'
 
-import {DEFAULT_TRUNCATION} from 'src/logs/constants'
+import {
+  DEFAULT_TRUNCATION,
+  DEFAULT_TAIL_CHUNK_DURATION_MS,
+  defaultTableData,
+} from 'src/logs/constants'
 import {LogsState, SearchStatus, SeverityFormatOptions} from 'src/types/logs'
 
 export const defaultState: LogsState = {
   currentSource: null,
-  currentNamespaces: [],
-  currentNamespace: null,
+  currentBuckets: [],
+  currentBucket: null,
   tableQueryConfig: null,
   filters: [],
   queryCount: 0,
@@ -23,11 +27,18 @@ export const defaultState: LogsState = {
     id: null,
     link: null,
     tableColumns: [],
-    severityFormat: SeverityFormatOptions.dotText,
+    severityFormat: SeverityFormatOptions.DotText,
     severityLevelColors: [],
     isTruncated: DEFAULT_TRUNCATION,
   },
   searchStatus: SearchStatus.None,
+  tableInfiniteData: {
+    forward: defaultTableData,
+    backward: defaultTableData,
+  },
+  currentTailUpperBound: undefined,
+  nextTailLowerBound: undefined,
+  tailChunkDurationMs: DEFAULT_TAIL_CHUNK_DURATION_MS,
 }
 
 const removeFilter = (
@@ -94,16 +105,48 @@ export const setConfigs = (
   return {...state, logConfig: updatedLogConfig}
 }
 
+const clearTableData = (state: LogsState) => {
+  return {
+    ...state,
+    tableInfiniteData: {
+      forward: defaultTableData,
+      backward: defaultTableData,
+    },
+  }
+}
+
 export default (state: LogsState = defaultState, action: Action) => {
   switch (action.type) {
     case ActionTypes.SetSource:
       return {...state, currentSource: action.payload.source}
-    case ActionTypes.SetNamespaces:
-      return {...state, currentNamespaces: action.payload.namespaces}
-    case ActionTypes.SetNamespace:
-      return {...state, currentNamespace: action.payload.namespace}
+    case ActionTypes.SetBuckets:
+      return {...state, currentBuckets: action.payload.buckets}
+    case ActionTypes.SetBucket:
+      return {...state, currentBucket: action.payload.bucket}
     case ActionTypes.SetSearchStatus:
       return {...state, searchStatus: action.payload.searchStatus}
+    case ActionTypes.SetTableQueryConfig:
+      return {...state, tableQueryConfig: action.payload.queryConfig}
+    case ActionTypes.SetCurrentTailUpperBound:
+      return {...state, currentTailUpperBound: action.payload.upper}
+    case ActionTypes.SetNextTailLowerBound:
+      return {...state, nextTailLowerBound: action.payload.lower}
+    case ActionTypes.SetTableForwardData:
+      return {
+        ...state,
+        tableInfiniteData: {
+          ...state.tableInfiniteData,
+          forward: action.payload.data,
+        },
+      }
+    case ActionTypes.SetTableBackwardData:
+      return {
+        ...state,
+        tableInfiniteData: {
+          ...state.tableInfiniteData,
+          backward: action.payload.data,
+        },
+      }
     case ActionTypes.AddFilter:
       return addFilter(state, action)
     case ActionTypes.RemoveFilter:
@@ -114,6 +157,8 @@ export default (state: LogsState = defaultState, action: Action) => {
       return clearFilters(state)
     case ActionTypes.SetConfig:
       return setConfigs(state, action)
+    case ActionTypes.ClearTableData:
+      return clearTableData(state)
     default:
       return state
   }
