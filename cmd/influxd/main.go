@@ -4,359 +4,401 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	nethttp "net/http"
 	_ "net/http/pprof"
 	"os"
-	"os/signal"
-	"os/user"
 	"path/filepath"
-	"runtime"
-	"syscall"
+	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/influxdata/flux/control"
-	"github.com/influxdata/flux/execute"
-	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/chronograf/server"
 	"github.com/influxdata/platform/gather"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/internal/fs"
+	"github.com/influxdata/platform/kit/cli"
 	"github.com/influxdata/platform/kit/prom"
+	"github.com/influxdata/platform/kit/signals"
+	influxlogger "github.com/influxdata/platform/logger"
 	"github.com/influxdata/platform/nats"
 	"github.com/influxdata/platform/query"
 	_ "github.com/influxdata/platform/query/builtin"
-	pcontrol "github.com/influxdata/platform/query/control"
+	"github.com/influxdata/platform/snowflake"
 	"github.com/influxdata/platform/source"
+	"github.com/influxdata/platform/storage"
+	"github.com/influxdata/platform/storage/readservice"
 	"github.com/influxdata/platform/task"
 	taskbackend "github.com/influxdata/platform/task/backend"
 	taskbolt "github.com/influxdata/platform/task/backend/bolt"
 	"github.com/influxdata/platform/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/platform/task/backend/executor"
+	_ "github.com/influxdata/platform/tsdb/tsi1"
+	_ "github.com/influxdata/platform/tsdb/tsm1"
 	pzap "github.com/influxdata/platform/zap"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func main() {
-	Execute()
-}
+	// exit with SIGINT and SIGTERM
+	ctx := context.Background()
+	ctx = signals.WithStandardSignals(ctx)
 
-const (
-	// IngressSubject is the subject that subscribers and publishers use for writing and consuming line protocol
-	IngressSubject = "ingress"
-	// IngressGroup is the Nats Streaming Subscriber group, allowing multiple subscribers to distribute work
-	IngressGroup = "ingress"
-)
-
-var (
-	httpBindAddress   string
-	authorizationPath string
-	boltPath          string
-	walPath           string
-)
-
-func influxDir() (string, error) {
-	var dir string
-	// By default, store meta and data files in current users home directory
-	u, err := user.Current()
-	if err == nil {
-		dir = u.HomeDir
-	} else if os.Getenv("HOME") != "" {
-		dir = os.Getenv("HOME")
-	} else {
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", err
-		}
-		dir = wd
-	}
-	dir = filepath.Join(dir, ".influxdbv2")
-
-	return dir, nil
-}
-
-func init() {
-	viper.SetEnvPrefix("INFLUX")
-
-	platformCmd.Flags().StringVar(&httpBindAddress, "http-bind-address", ":9999", "bind address for the rest http api")
-	viper.BindEnv("HTTP_BIND_ADDRESS")
-	if h := viper.GetString("HTTP_BIND_ADDRESS"); h != "" {
-		httpBindAddress = h
-	}
-
-	platformCmd.Flags().StringVar(&authorizationPath, "authorizationPath", "", "path to a bootstrap token")
-	viper.BindEnv("TOKEN_PATH")
-	if h := viper.GetString("TOKEN_PATH"); h != "" {
-		authorizationPath = h
-	}
-
-	platformCmd.Flags().StringVar(&boltPath, "bolt-path", "influxd.bolt", "path to boltdb database")
-	viper.BindEnv("BOLT_PATH")
-	if h := viper.GetString("BOLT_PATH"); h != "" {
-		boltPath = h
-	}
-
-	dir, err := influxDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to determine influx directory: %v", err)
+	m := NewMain()
+	if err := m.Run(ctx, os.Args[1:]...); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	platformCmd.Flags().StringVar(&walPath, "wal-path", filepath.Join(dir, "wal"), "path to persistent WAL files")
-	viper.BindEnv("WAL_PATH")
-	if h := viper.GetString("WAL_PATH"); h != "" {
-		walPath = h
+	<-ctx.Done()
+
+	// Attempt clean shutdown.
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	m.Shutdown(ctx)
+}
+
+// Main represents the main program execution.
+type Main struct {
+	wg     sync.WaitGroup
+	cancel func()
+
+	logLevel        string
+	httpBindAddress string
+	boltPath        string
+	natsPath        string
+	developerMode   bool
+	enginePath      string
+
+	boltClient *bolt.Client
+	engine     *storage.Engine
+
+	httpPort   int
+	httpServer *nethttp.Server
+
+	natsServer *nats.Server
+
+	scheduler *taskbackend.TickScheduler
+
+	logger *zap.Logger
+
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// NewMain returns a new instance of Main connected to standard in/out/err.
+func NewMain() *Main {
+	return &Main{
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}
 }
 
-var platformCmd = &cobra.Command{
-	Use:   "influxd",
-	Short: "influxdata platform",
-	Run:   platformF,
+// URL returns the URL to connect to the HTTP server.
+func (m *Main) URL() string {
+	return fmt.Sprintf("http://localhost:%d", m.httpPort)
 }
 
-func platformF(cmd *cobra.Command, args []string) {
-	ctx := context.Background()
+// Shutdown shuts down the HTTP server and waits for all services to clean up.
+func (m *Main) Shutdown(ctx context.Context) {
+	m.cancel()
+	m.httpServer.Shutdown(ctx)
+
+	m.logger.Info("Stopping", zap.String("service", "task"))
+	m.scheduler.Stop()
+
+	m.logger.Info("Stopping", zap.String("service", "nats"))
+	m.natsServer.Close()
+
+	m.logger.Info("Stopping", zap.String("service", "bolt"))
+	if err := m.boltClient.Close(); err != nil {
+		m.logger.Info("failed closing bolt", zap.Error(err))
+	}
+
+	m.logger.Info("Stopping", zap.String("service", "storage-engine"))
+	if err := m.engine.Close(); err != nil {
+		m.logger.Error("failed to close engine", zap.Error(err))
+	}
+
+	m.wg.Wait()
+
+	m.logger.Sync()
+}
+
+// Run executes the program with the given CLI arguments.
+func (m *Main) Run(ctx context.Context, args ...string) error {
+	dir, err := fs.InfluxDir()
+	if err != nil {
+		return fmt.Errorf("Failed to determine influx directory: %v", err)
+	}
+
+	prog := &cli.Program{
+		Name: "influxd",
+		Run:  func() error { return m.run(ctx) },
+		Opts: []cli.Opt{
+			{
+				DestP:   &m.logLevel,
+				Flag:    "log-level",
+				Default: "info",
+				Desc:    "supported log levels are debug, info, and error",
+			},
+			{
+				DestP:   &m.httpBindAddress,
+				Flag:    "http-bind-address",
+				Default: ":9999",
+				Desc:    "bind address for the REST HTTP API",
+			},
+			{
+				DestP:   &m.boltPath,
+				Flag:    "bolt-path",
+				Default: filepath.Join(dir, "influxd.bolt"),
+				Desc:    "path to boltdb database",
+			},
+			{
+				DestP:   &m.developerMode,
+				Flag:    "developer-mode",
+				Default: false,
+				Desc:    "serve assets from the local filesystem in developer mode",
+			},
+			{
+				DestP:   &m.natsPath,
+				Flag:    "nats-path",
+				Default: filepath.Join(dir, "nats"),
+				Desc:    "path to NATS queue for scraping tasks",
+			},
+			{
+				DestP:   &m.enginePath,
+				Flag:    "engine-path",
+				Default: filepath.Join(dir, "engine"),
+				Desc:    "path to persistent engine files",
+			},
+		},
+	}
+
+	cmd := cli.NewCommand(prog)
+	cmd.SetArgs(args)
+	return cmd.Execute()
+}
+
+func (m *Main) run(ctx context.Context) (err error) {
+	ctx, m.cancel = context.WithCancel(ctx)
+
+	var lvl zapcore.Level
+	if err := lvl.Set(m.logLevel); err != nil {
+		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
+	}
+
 	// Create top level logger
-	logger := influxlogger.New(os.Stdout)
+	logconf := &influxlogger.Config{
+		Format: "auto",
+		Level:  lvl,
+	}
+	m.logger, err = logconf.New(m.Stdout)
+	if err != nil {
+		return err
+	}
+
+	// set tracing
+	tracer := new(pzap.Tracer)
+	tracer.Logger = m.logger
+	tracer.IDGenerator = snowflake.NewIDGenerator()
+	opentracing.SetGlobalTracer(tracer)
 
 	reg := prom.NewRegistry()
 	reg.MustRegister(prometheus.NewGoCollector())
-	reg.WithLogger(logger)
+	reg.WithLogger(m.logger)
 
-	c := bolt.NewClient()
-	c.Path = boltPath
+	m.boltClient = bolt.NewClient()
+	m.boltClient.Path = m.boltPath
+	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
 
-	if err := c.Open(ctx); err != nil {
-		logger.Error("failed opening bolt", zap.Error(err))
-		os.Exit(1)
-	}
-	defer c.Close()
-
-	var authSvc platform.AuthorizationService
-	{
-		authSvc = c
+	if err := m.boltClient.Open(ctx); err != nil {
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
 	}
 
-	var bucketSvc platform.BucketService
-	{
-		bucketSvc = c
+	var (
+		orgSvc           platform.OrganizationService             = m.boltClient
+		authSvc          platform.AuthorizationService            = m.boltClient
+		userSvc          platform.UserService                     = m.boltClient
+		viewSvc          platform.ViewService                     = m.boltClient
+		macroSvc         platform.MacroService                    = m.boltClient
+		bucketSvc        platform.BucketService                   = m.boltClient
+		sourceSvc        platform.SourceService                   = m.boltClient
+		sessionSvc       platform.SessionService                  = m.boltClient
+		basicAuthSvc     platform.BasicAuthService                = m.boltClient
+		dashboardSvc     platform.DashboardService                = m.boltClient
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
+		userLogSvc       platform.UserOperationLogService         = m.boltClient
+		bucketLogSvc     platform.BucketOperationLogService       = m.boltClient
+		orgLogSvc        platform.OrganizationOperationLogService = m.boltClient
+		onboardingSvc    platform.OnboardingService               = m.boltClient
+		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
+		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
+		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
+	)
+
+	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
+	if err != nil {
+		m.logger.Error("failed creating chronograf service", zap.Error(err))
+		return err
 	}
 
-	var orgSvc platform.OrganizationService
+	var storageQueryService query.ProxyQueryService
+	var pointsWriter storage.PointsWriter
 	{
-		orgSvc = c
-	}
+		config := storage.NewConfig()
 
-	var userSvc platform.UserService
-	{
-		userSvc = c
-	}
+		m.engine = storage.NewEngine(m.enginePath, config, storage.WithRetentionEnforcer(bucketSvc))
+		m.engine.WithLogger(m.logger)
+		reg.MustRegister(m.engine.PrometheusCollectors()...)
 
-	var dashboardSvc platform.DashboardService
-	{
-		dashboardSvc = c
-	}
-
-	var cellSvc platform.ViewService
-	{
-		cellSvc = c
-	}
-
-	var sourceSvc platform.SourceService
-	{
-		sourceSvc = c
-	}
-
-	var macroSvc platform.MacroService
-	{
-		macroSvc = c
-	}
-
-	var queryService query.QueryService
-	{
-		// TODO(lh): this is temporary until query endpoint is added here.
-		config := control.Config{
-			ExecutorDependencies: make(execute.Dependencies),
-			ConcurrencyQuota:     runtime.NumCPU() * 2,
-			MemoryBytesQuota:     0,
-			Verbose:              false,
+		if err := m.engine.Open(); err != nil {
+			m.logger.Error("failed to open engine", zap.Error(err))
+			return err
 		}
 
-		queryService = query.QueryServiceBridge{
-			AsyncQueryService: pcontrol.New(config),
+		pointsWriter = m.engine
+
+		service, err := readservice.NewProxyQueryService(
+			m.engine, bucketSvc, orgSvc, m.logger.With(zap.String("service", "storage-reads")))
+		if err != nil {
+			m.logger.Error("failed to create query service", zap.Error(err))
+			return err
 		}
+
+		storageQueryService = service
 	}
 
+	var queryService query.QueryService = storageQueryService.(query.ProxyQueryServiceBridge).QueryService
 	var taskSvc platform.TaskService
 	{
-		boltStore, err := taskbolt.New(c.DB(), "tasks")
+		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
 		if err != nil {
-			logger.Fatal("failed opening task bolt", zap.Error(err))
+			m.logger.Error("failed opening task bolt", zap.Error(err))
+			return err
 		}
 
-		executor := taskexecutor.NewQueryServiceExecutor(logger, queryService, boltStore)
+		executor := taskexecutor.NewQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), queryService, boltStore)
 
-		// TODO(lh): Replace NopLogWriter with real log writer
-		scheduler := taskbackend.NewScheduler(boltStore, executor, taskbackend.NopLogWriter{}, time.Now().UTC().Unix())
+		lw := taskbackend.NewPointLogWriter(pointsWriter)
+		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, time.Second), taskbackend.WithLogger(m.logger))
+		m.scheduler.Start(ctx)
+		reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		// TODO(lh): Replace NopLogReader with real log reader
-		taskSvc = task.PlatformAdapter(coordinator.New(scheduler, boltStore), taskbackend.NopLogReader{})
+		lr := taskbackend.NewQueryLogReader(queryService)
+		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
 		// TODO(lh): Add in `taskSvc = task.NewValidator(taskSvc)` once we have Authentication coming in the context.
 		// see issue #563
 	}
 
-	var scraperTargetSvc platform.ScraperTargetStoreService = c
-
-	chronografSvc, err := server.NewServiceV2(ctx, c.DB())
-	if err != nil {
-		logger.Error("failed creating chronograf service", zap.Error(err))
-		os.Exit(1)
-	}
-
-	errc := make(chan error)
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGTERM, os.Interrupt)
-
 	// NATS streaming server
-	natsServer := nats.NewServer(nats.Config{FilestoreDir: walPath})
-	if err := natsServer.Open(); err != nil {
-		logger.Error("failed to start nats streaming server", zap.Error(err))
-		os.Exit(1)
+	m.natsServer = nats.NewServer(nats.Config{FilestoreDir: m.natsPath})
+	if err := m.natsServer.Open(); err != nil {
+		m.logger.Error("failed to start nats streaming server", zap.Error(err))
+		return err
 	}
 
 	publisher := nats.NewAsyncPublisher("nats-publisher")
 	if err := publisher.Open(); err != nil {
-		logger.Error("failed to connect to streaming server", zap.Error(err))
-		os.Exit(1)
+		m.logger.Error("failed to connect to streaming server", zap.Error(err))
+		return err
 	}
 
 	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
 	subscriber := nats.NewQueueSubscriber("nats-subscriber")
 	if err := subscriber.Open(); err != nil {
-		logger.Error("failed to connect to streaming server", zap.Error(err))
-		os.Exit(1)
+		m.logger.Error("failed to connect to streaming server", zap.Error(err))
+		return err
 	}
 
-	if err := subscriber.Subscribe(IngressSubject, IngressGroup, &nats.LogHandler{Logger: logger}); err != nil {
-		logger.Error("failed to create nats subscriber", zap.Error(err))
-		os.Exit(1)
-	}
-
-	scraperScheduler, err := gather.NewScheduler(10, logger, scraperTargetSvc, publisher, subscriber, 0, 0)
+	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 0, 0)
 	if err != nil {
-		logger.Error("failed to create scraper subscriber", zap.Error(err))
-		os.Exit(1)
+		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
+		return err
 	}
-	go func() {
-		errc <- scraperScheduler.Run(ctx)
-	}()
 
-	httpServer := &nethttp.Server{
-		Addr: httpBindAddress,
+	m.wg.Add(1)
+	go func(logger *zap.Logger) {
+		defer m.wg.Done()
+		logger = logger.With(zap.String("service", "scraper"))
+		if err := scraperScheduler.Run(ctx); err != nil {
+			logger.Error("failed scraper service", zap.Error(err))
+		}
+		logger.Info("Stopping")
+	}(m.logger)
+
+	m.httpServer = &nethttp.Server{
+		Addr: m.httpBindAddress,
+	}
+
+	handlerConfig := &http.APIBackend{
+		Logger:                          m.logger,
+		NewBucketService:                source.NewBucketService,
+		NewQueryService:                 source.NewQueryService,
+		PointsWriter:                    pointsWriter,
+		AuthorizationService:            authSvc,
+		BucketService:                   bucketSvc,
+		SessionService:                  sessionSvc,
+		UserService:                     userSvc,
+		OrganizationService:             orgSvc,
+		UserResourceMappingService:      userResourceSvc,
+		DashboardService:                dashboardSvc,
+		DashboardOperationLogService:    dashboardLogSvc,
+		BucketOperationLogService:       bucketLogSvc,
+		UserOperationLogService:         userLogSvc,
+		OrganizationOperationLogService: orgLogSvc,
+		ViewService:                     viewSvc,
+		SourceService:                   sourceSvc,
+		MacroService:                    macroSvc,
+		BasicAuthService:                basicAuthSvc,
+		OnboardingService:               onboardingSvc,
+		ProxyQueryService:               storageQueryService,
+		TaskService:                     taskSvc,
+		TelegrafService:                 telegrafSvc,
+		ScraperTargetStoreService:       scraperTargetSvc,
+		ChronografService:               chronografSvc,
 	}
 
 	// HTTP server
-	go func() {
-		bucketHandler := http.NewBucketHandler()
-		bucketHandler.BucketService = bucketSvc
+	httpLogger := m.logger.With(zap.String("service", "http"))
+	platformHandler := http.NewPlatformHandler(handlerConfig)
+	reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
-		orgHandler := http.NewOrgHandler()
-		orgHandler.OrganizationService = orgSvc
-		orgHandler.BucketService = bucketSvc
+	h := http.NewHandlerFromRegistry("platform", reg)
+	h.Handler = platformHandler
+	h.Logger = httpLogger
+	h.Tracer = opentracing.GlobalTracer()
 
-		userHandler := http.NewUserHandler()
-		userHandler.UserService = userSvc
+	m.httpServer.Handler = h
 
-		dashboardHandler := http.NewDashboardHandler()
-		dashboardHandler.DashboardService = dashboardSvc
-
-		cellHandler := http.NewViewHandler()
-		cellHandler.ViewService = cellSvc
-
-		macroHandler := http.NewMacroHandler()
-		macroHandler.MacroService = macroSvc
-
-		authHandler := http.NewAuthorizationHandler()
-		authHandler.AuthorizationService = authSvc
-		authHandler.Logger = logger.With(zap.String("handler", "auth"))
-
-		assetHandler := http.NewAssetHandler()
-		fluxLangHandler := http.NewFluxLangHandler()
-
-		sourceHandler := http.NewSourceHandler()
-		sourceHandler.SourceService = sourceSvc
-		sourceHandler.NewBucketService = source.NewBucketService
-		sourceHandler.NewQueryService = source.NewQueryService
-
-		taskHandler := http.NewTaskHandler(logger)
-		taskHandler.TaskService = taskSvc
-
-		publishFn := func(r io.Reader) error {
-			return publisher.Publish(IngressSubject, r)
-		}
-
-		writeHandler := http.NewWriteHandler(publishFn)
-		writeHandler.AuthorizationService = authSvc
-		writeHandler.OrganizationService = orgSvc
-		writeHandler.BucketService = bucketSvc
-		writeHandler.Logger = logger.With(zap.String("handler", "write"))
-
-		queryHandler := http.NewFluxHandler()
-		queryHandler.AuthorizationService = authSvc
-		queryHandler.OrganizationService = orgSvc
-		queryHandler.Logger = logger.With(zap.String("handler", "query"))
-		queryHandler.ProxyQueryService = pzap.NewProxyQueryService(queryHandler.Logger)
-
-		// TODO(desa): what to do about idpe.
-		chronografHandler := http.NewChronografHandler(chronografSvc)
-
-		platformHandler := &http.PlatformHandler{
-			BucketHandler:        bucketHandler,
-			OrgHandler:           orgHandler,
-			UserHandler:          userHandler,
-			AuthorizationHandler: authHandler,
-			DashboardHandler:     dashboardHandler,
-			AssetHandler:         assetHandler,
-			FluxLangHandler:      fluxLangHandler,
-			ChronografHandler:    chronografHandler,
-			SourceHandler:        sourceHandler,
-			TaskHandler:          taskHandler,
-			ViewHandler:          cellHandler,
-			MacroHandler:         macroHandler,
-			QueryHandler:         queryHandler,
-			WriteHandler:         writeHandler,
-		}
-		reg.MustRegister(platformHandler.PrometheusCollectors()...)
-
-		h := http.NewHandlerFromRegistry("platform", reg)
-		h.Handler = platformHandler
-
-		httpServer.Handler = h
-		logger.Info("listening", zap.String("transport", "http"), zap.String("addr", httpBindAddress))
-		errc <- httpServer.ListenAndServe()
-	}()
-
-	select {
-	case <-sigs:
-	case err := <-errc:
-		logger.Fatal("unable to start platform", zap.Error(err))
+	ln, err := net.Listen("tcp", m.httpBindAddress)
+	if err != nil {
+		httpLogger.Error("failed http listener", zap.Error(err))
+		httpLogger.Info("Stopping")
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	httpServer.Shutdown(ctx)
-}
-
-// Execute executes the idped command
-func Execute() {
-	if err := platformCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		m.httpPort = addr.Port
 	}
+
+	m.wg.Add(1)
+	go func(logger *zap.Logger) {
+		defer m.wg.Done()
+		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
+
+		if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+			logger.Error("failed http service", zap.Error(err))
+		}
+		logger.Info("Stopping")
+	}(httpLogger)
+
+	return nil
 }

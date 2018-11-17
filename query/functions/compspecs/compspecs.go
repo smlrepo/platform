@@ -6,26 +6,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/semantic/semantictest"
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query/influxql"
-
-	"github.com/google/go-cmp/cmp"
-	"golang.org/x/text/unicode/norm"
+	platformtesting "github.com/influxdata/platform/testing"
 )
-
-func normalizeString(s string) []byte {
-	result := norm.NFC.String(strings.TrimSpace(s))
-	re := regexp.MustCompile(`\r?\n`)
-	return []byte(re.ReplaceAllString(result, "\r\n"))
-}
 
 func printUsage() {
 	fmt.Println("usage: prepcsvtests /path/to/testfiles [testname]")
@@ -92,15 +83,13 @@ func main() {
 var dbrpMappingSvc = mock.NewDBRPMappingService()
 
 func init() {
-	organizationID := platform.ID("aaaa")
-	bucketID := platform.ID("bbbb")
 	mapping := platform.DBRPMapping{
 		Cluster:         "cluster",
 		Database:        "db",
 		RetentionPolicy: "rp",
 		Default:         true,
-		OrganizationID:  organizationID,
-		BucketID:        bucketID,
+		OrganizationID:  platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
+		BucketID:        platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb"),
 	}
 	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
 		return &mapping, nil

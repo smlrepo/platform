@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/platform/inmem"
-	platformtesting "github.com/influxdata/platform/testing"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/influxdata/platform/inmem"
+	platformtesting "github.com/influxdata/platform/testing"
 
 	"github.com/influxdata/platform"
 	"github.com/influxdata/platform/mock"
@@ -43,14 +44,14 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					FindAuthorizationsFn: func(ctx context.Context, filter platform.AuthorizationFilter, opts ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 						return []*platform.Authorization{
 							{
-								ID:     platform.ID("0"),
+								ID:     platformtesting.MustIDBase16("0d0a657820696e74"),
 								Token:  "hello",
-								UserID: platform.ID("10"),
+								UserID: platformtesting.MustIDBase16("2070616e656d2076"),
 							},
 							{
-								ID:     platform.ID("2"),
+								ID:     platformtesting.MustIDBase16("6669646573207375"),
 								Token:  "example",
-								UserID: platform.ID("20"),
+								UserID: platformtesting.MustIDBase16("6c7574652c206f6e"),
 							},
 						}, 2, nil
 					},
@@ -63,26 +64,26 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/authorizations"
+    "self": "/api/v2/authorizations"
   },
   "auths": [
     {
       "links": {
-        "user": "/v1/users/3130",
-        "self": "/v1/authorizations/30"
+        "user": "/api/v2/users/2070616e656d2076",
+        "self": "/api/v2/authorizations/0d0a657820696e74"
       },
-      "id": "30",
-      "userID": "3130",
+      "id": "0d0a657820696e74",
+      "userID": "2070616e656d2076",
       "status": "",
       "token": "hello"
     },
     {
       "links": {
-        "user": "/v1/users/3230",
-        "self": "/v1/authorizations/32"
+        "user": "/api/v2/users/6c7574652c206f6e",
+        "self": "/api/v2/authorizations/6669646573207375"
       },
-      "id": "32",
-      "userID": "3230",
+      "id": "6669646573207375",
+      "userID": "6c7574652c206f6e",
       "status": "",
       "token": "example"
     }
@@ -107,7 +108,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/authorizations"
+    "self": "/api/v2/authorizations"
   },
   "auths": []
 }`,
@@ -176,10 +177,10 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Authorization{
-								ID:     mustParseID("020f755c3c082000"),
-								UserID: mustParseID("020f755c3c082000"),
+								ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+								UserID: platformtesting.MustIDBase16("020f755c3c082000"),
 								Token:  "hello",
 							}, nil
 						}
@@ -197,8 +198,8 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				body: `
 {
   "links": {
-    "user": "/v1/users/020f755c3c082000",
-    "self": "/v1/authorizations/020f755c3c082000"
+    "user": "/api/v2/users/020f755c3c082000",
+    "self": "/api/v2/authorizations/020f755c3c082000"
   },
   "id": "020f755c3c082000",
   "userID": "020f755c3c082000",
@@ -213,7 +214,10 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-						return nil, fmt.Errorf("authorization not found")
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "authorization not found",
+						}
 					},
 				},
 			},
@@ -289,7 +293,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					CreateAuthorizationFn: func(ctx context.Context, c *platform.Authorization) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -297,7 +301,8 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			args: args{
 				authorization: &platform.Authorization{
 					Token:  "hello",
-					UserID: platform.ID("0"),
+					ID:     platformtesting.MustIDBase16("020f755c3c082000"),
+					UserID: platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 				},
 			},
 			wants: wants{
@@ -306,11 +311,11 @@ func TestService_handlePostAuthorization(t *testing.T) {
 				body: `
 {
   "links": {
-    "user": "/v1/users/30",
-    "self": "/v1/authorizations/020f755c3c082000"
+    "user": "/api/v2/users/aaaaaaaaaaaaaaaa",
+    "self": "/api/v2/authorizations/020f755c3c082000"
   },
   "id": "020f755c3c082000",
-  "userID": "30",
+  "userID": "aaaaaaaaaaaaaaaa",
   "token": "hello",
   "status": ""
 }
@@ -375,7 +380,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -395,7 +400,10 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			fields: fields{
 				&mock.AuthorizationService{
 					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
-						return fmt.Errorf("authorization not found")
+						return &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "authorization not found",
+						}
 					},
 				},
 			},
@@ -446,7 +454,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 	}
 }
 
-func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, func()) {
+func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.T) (platform.AuthorizationService, string, func()) {
 	t.Helper()
 	if t.Name() == "TestAuthorizationService_FindAuthorizations/find_authorization_by_token" {
 		/*
@@ -480,7 +488,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 	done := server.Close
 
-	return &client, done
+	return &client, inmem.OpPrefix, done
 }
 
 func TestAuthorizationService_CreateAuthorization(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 
 // ScraperTarget is a target to scrape
 type ScraperTarget struct {
-	ID         ID          `json:"id"`
+	ID         ID          `json:"id,omitempty"`
 	Name       string      `json:"name"`
 	Type       ScraperType `json:"type"`
 	URL        string      `json:"url"`
@@ -37,10 +37,6 @@ const (
 	// PrometheusScraperType parses metrics from a prometheus endpoint.
 	PrometheusScraperType = "prometheus"
 )
-
-var validScraperTypes = map[ScraperType]bool{
-	PrometheusScraperType: false,
-}
 
 // ValidScraperType returns true is the type string is valid
 func ValidScraperType(s string) bool {

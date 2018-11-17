@@ -44,14 +44,16 @@ func TestService_handleGetBuckets(t *testing.T) {
 					FindBucketsFn: func(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
 						return []*platform.Bucket{
 							{
-								ID:             platform.ID("0"),
-								Name:           "hello",
-								OrganizationID: platform.ID("10"),
+								ID:              platformtesting.MustIDBase16("0b501e7e557ab1ed"),
+								Name:            "hello",
+								OrganizationID:  platformtesting.MustIDBase16("50f7ba1150f7ba11"),
+								RetentionPeriod: 2 * time.Second,
 							},
 							{
-								ID:             platform.ID("2"),
-								Name:           "example",
-								OrganizationID: platform.ID("20"),
+								ID:              platformtesting.MustIDBase16("c0175f0077a77005"),
+								Name:            "example",
+								OrganizationID:  platformtesting.MustIDBase16("7e55e118dbabb1ed"),
+								RetentionPeriod: 24 * time.Hour,
 							},
 						}, 2, nil
 					},
@@ -64,28 +66,30 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/buckets"
+    "self": "/api/v2/buckets"
   },
   "buckets": [
     {
       "links": {
-        "org": "/v1/orgs/3130",
-        "self": "/v1/buckets/30"
+        "org": "/api/v2/orgs/50f7ba1150f7ba11",
+        "self": "/api/v2/buckets/0b501e7e557ab1ed",
+        "log": "/api/v2/buckets/0b501e7e557ab1ed/log"
       },
-      "id": "30",
-      "organizationID": "3130",
+      "id": "0b501e7e557ab1ed",
+      "organizationID": "50f7ba1150f7ba11",
       "name": "hello",
-      "retentionPeriod": 0
+	  "retentionRules": [{"type": "expire", "everySeconds": 2}]
     },
     {
       "links": {
-        "org": "/v1/orgs/3230",
-        "self": "/v1/buckets/32"
+        "org": "/api/v2/orgs/7e55e118dbabb1ed",
+        "self": "/api/v2/buckets/c0175f0077a77005",
+        "log": "/api/v2/buckets/c0175f0077a77005/log"
       },
-      "id": "32",
-      "organizationID": "3230",
+      "id": "c0175f0077a77005",
+      "organizationID": "7e55e118dbabb1ed",
       "name": "example",
-      "retentionPeriod": 0
+	  "retentionRules": [{"type": "expire", "everySeconds": 86400}]
     }
   ]
 }
@@ -108,7 +112,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 				body: `
 {
   "links": {
-    "self": "/v1/buckets"
+    "self": "/api/v2/buckets"
   },
   "buckets": []
 }`,
@@ -118,7 +122,8 @@ func TestService_handleGetBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -177,11 +182,12 @@ func TestService_handleGetBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Bucket{
-								ID:             mustParseID("020f755c3c082000"),
-								OrganizationID: mustParseID("020f755c3c082000"),
-								Name:           "hello",
+								ID:              platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID:  platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:            "hello",
+								RetentionPeriod: 30 * time.Second,
 							}, nil
 						}
 
@@ -198,13 +204,14 @@ func TestService_handleGetBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/020f755c3c082000",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "hello",
-  "retentionPeriod": 0
+  "retentionRules": [{"type": "expire", "everySeconds": 30}]
 }
 `,
 			},
@@ -229,7 +236,8 @@ func TestService_handleGetBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -290,7 +298,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					CreateBucketFn: func(ctx context.Context, c *platform.Bucket) error {
-						c.ID = mustParseID("020f755c3c082000")
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
 						return nil
 					},
 				},
@@ -298,7 +306,7 @@ func TestService_handlePostBucket(t *testing.T) {
 			args: args{
 				bucket: &platform.Bucket{
 					Name:           "hello",
-					OrganizationID: platform.ID("0"),
+					OrganizationID: platformtesting.MustIDBase16("6f626f7274697320"),
 				},
 			},
 			wants: wants{
@@ -307,13 +315,14 @@ func TestService_handlePostBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/30",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/6f626f7274697320",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
   },
   "id": "020f755c3c082000",
-  "organizationID": "30",
+  "organizationID": "6f626f7274697320",
   "name": "hello",
-  "retentionPeriod": 0
+  "retentionRules": []
 }
 `,
 			},
@@ -322,10 +331,11 @@ func TestService_handlePostBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
-			b, err := json.Marshal(tt.args.bucket)
+			b, err := json.Marshal(newBucket(tt.args.bucket))
 			if err != nil {
 				t.Fatalf("failed to unmarshal bucket: %v", err)
 			}
@@ -340,7 +350,8 @@ func TestService_handlePostBucket(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePostBucket() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				msg := res.Header.Get(ErrorHeader)
+				t.Errorf("%q. handlePostBucket() = %v, want %v: %s", tt.name, res.StatusCode, tt.wants.statusCode, msg)
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
@@ -376,7 +387,7 @@ func TestService_handleDeleteBucket(t *testing.T) {
 			fields: fields{
 				&mock.BucketService{
 					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
 
@@ -411,7 +422,8 @@ func TestService_handleDeleteBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -469,15 +481,15 @@ func TestService_handlePatchBucket(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "update a bucket name and retenion",
+			name: "update a bucket name and retention",
 			fields: fields{
 				&mock.BucketService{
 					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
-						if bytes.Equal(id, mustParseID("020f755c3c082000")) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							d := &platform.Bucket{
-								ID:             mustParseID("020f755c3c082000"),
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
 								Name:           "hello",
-								OrganizationID: mustParseID("020f755c3c082000"),
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
 							}
 
 							if upd.Name != nil {
@@ -498,7 +510,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			args: args{
 				id:        "020f755c3c082000",
 				name:      "example",
-				retention: 1234,
+				retention: 2 * time.Second,
 			},
 			wants: wants{
 				statusCode:  http.StatusOK,
@@ -506,13 +518,14 @@ func TestService_handlePatchBucket(t *testing.T) {
 				body: `
 {
   "links": {
-    "org": "/v1/orgs/020f755c3c082000",
-    "self": "/v1/buckets/020f755c3c082000"
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
   },
   "id": "020f755c3c082000",
   "organizationID": "020f755c3c082000",
   "name": "example",
-  "retentionPeriod": 1234
+  "retentionRules": [{"type": "expire", "everySeconds": 2}]
 }
 `,
 			},
@@ -527,29 +540,167 @@ func TestService_handlePatchBucket(t *testing.T) {
 				},
 			},
 			args: args{
-				id:   "020f755c3c082000",
-				name: "hello",
+				id:        "020f755c3c082000",
+				name:      "hello",
+				retention: time.Second,
 			},
 			wants: wants{
 				statusCode: http.StatusNotFound,
+			},
+		},
+		{
+			name: "update bucket to no retention and new name",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "hello",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				name:      "bucket with no retention",
+				retention: 0,
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
+  },
+  "id": "020f755c3c082000",
+  "organizationID": "020f755c3c082000",
+  "name": "bucket with no retention",
+  "retentionRules": []
+}
+`,
+			},
+		},
+		{
+			name: "update retention policy to 'nothing'",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "b1",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				retention: 0,
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "org": "/api/v2/orgs/020f755c3c082000",
+    "self": "/api/v2/buckets/020f755c3c082000",
+    "log": "/api/v2/buckets/020f755c3c082000/log"
+  },
+  "id": "020f755c3c082000",
+  "organizationID": "020f755c3c082000",
+  "name": "b1",
+  "retentionRules": []
+}
+`,
+			},
+		},
+		{
+			name: "update a bucket name with invalid retention policy is an error",
+			fields: fields{
+				&mock.BucketService{
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							d := &platform.Bucket{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								Name:           "hello",
+								OrganizationID: platformtesting.MustIDBase16("020f755c3c082000"),
+							}
+
+							if upd.Name != nil {
+								d.Name = *upd.Name
+							}
+
+							if upd.RetentionPeriod != nil {
+								d.RetentionPeriod = *upd.RetentionPeriod
+							}
+
+							return d, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:        "020f755c3c082000",
+				name:      "example",
+				retention: -10,
+			},
+			wants: wants{
+				statusCode: http.StatusUnprocessableEntity,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewBucketHandler()
+			mappingService := mock.NewUserResourceMappingService()
+			h := NewBucketHandler(mappingService)
 			h.BucketService = tt.fields.BucketService
 
 			upd := platform.BucketUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}
+
 			if tt.args.retention != 0 {
 				upd.RetentionPeriod = &tt.args.retention
 			}
 
-			b, err := json.Marshal(upd)
+			b, err := json.Marshal(newBucketUpdate(&upd))
 			if err != nil {
 				t.Fatalf("failed to unmarshal bucket update: %v", err)
 			}
@@ -575,7 +726,7 @@ func TestService_handlePatchBucket(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePatchBucket() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				t.Errorf("%q. handlePatchBucket() = %v, want %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header())
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchBucket() = %v, want %v", tt.name, content, tt.wants.contentType)
@@ -603,7 +754,8 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 		}
 	}
 
-	handler := NewBucketHandler()
+	mappingService := mock.NewUserResourceMappingService()
+	handler := NewBucketHandler(mappingService)
 	handler.BucketService = svc
 	server := httptest.NewServer(handler)
 	client := BucketService{

@@ -3,10 +3,12 @@
 package platform
 
 import (
+	_ "github.com/gogo/protobuf/protoc-gen-gogo"
 	_ "github.com/gogo/protobuf/protoc-gen-gogofaster"
 	_ "github.com/goreleaser/goreleaser"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
+	_ "honnef.co/go/tools/cmd/megacheck"
 )
 
 // This package is a workaround for adding additional paths to the go.mod file

@@ -10,11 +10,13 @@ import (
 // Some error code constant, ideally we want define common platform codes here
 // projects on use platform's error, should have their own central place like this.
 const (
-	EInternal   = "internal error"
-	ENotFound   = "not found"
-	EConflict   = "conflict" // action cannot be performed
-	EInvalid    = "invalid"  // validation failed
-	EEmptyValue = "empty value"
+	EInternal    = "internal error"
+	ENotFound    = "not found"
+	EConflict    = "conflict" // action cannot be performed
+	EInvalid     = "invalid"  // validation failed
+	EEmptyValue  = "empty value"
+	EUnavailable = "unavailable"
+	EForbidden   = "forbidden"
 )
 
 // Error is the error struct of platform.
@@ -54,7 +56,7 @@ type Error struct {
 }
 
 // Error implement the error interface by outputing the Code and Err.
-func (e Error) Error() string {
+func (e *Error) Error() string {
 	var b strings.Builder
 
 	// Print the current operation in our stack, if any.
@@ -84,8 +86,20 @@ func ErrorCode(err error) string {
 		return ""
 	} else if e, ok := err.(*Error); ok && e.Code != "" {
 		return e.Code
+	} else if ok && e.Err != nil {
+		return ErrorCode(e.Err)
 	}
 	return EInternal
+}
+
+// ErrorOp returns the op of the error, if available; otherwise return empty string.
+func ErrorOp(err error) string {
+	if e, ok := err.(*Error); ok && e.Op != "" {
+		return e.Op
+	} else if ok && e.Err != nil {
+		return ErrorOp(e.Err)
+	}
+	return ""
 }
 
 // ErrorMessage returns the human-readable message of the error, if available.

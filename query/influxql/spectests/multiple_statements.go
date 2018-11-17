@@ -3,10 +3,13 @@ package spectests
 import (
 	"time"
 
+	"github.com/influxdata/flux/functions/inputs"
+	"github.com/influxdata/flux/functions/transformations"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
-	"github.com/influxdata/flux/functions"
+
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/influxql"
 )
@@ -19,51 +22,55 @@ func init() {
 				Operations: []*flux.Operation{
 					{
 						ID: "from0",
-						Spec: &functions.FromOpSpec{
-							BucketID: bucketID,
+						Spec: &inputs.FromOpSpec{
+							BucketID: bucketID.String(),
 						},
 					},
 					{
 						ID: "range0",
-						Spec: &functions.RangeOpSpec{
-							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
-							TimeCol:  execute.DefaultTimeColLabel,
-							StartCol: execute.DefaultStartColLabel,
-							StopCol:  execute.DefaultStopColLabel,
+						Spec: &transformations.RangeOpSpec{
+							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							TimeColumn:  execute.DefaultTimeColLabel,
+							StartColumn: execute.DefaultStartColLabel,
+							StopColumn:  execute.DefaultStopColLabel,
 						},
 					},
 					{
 						ID: "filter0",
-						Spec: &functions.FilterOpSpec{
+						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{
-									{Key: &semantic.Identifier{Name: "r"}},
-								},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.AndOperator,
-									Left: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
-											},
-											Property: "_measurement",
-										},
-										Right: &semantic.StringLiteral{
-											Value: "cpu",
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{
+											{Key: &semantic.Identifier{Name: "r"}},
 										},
 									},
-									Right: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Body: &semantic.LogicalExpression{
+										Operator: ast.AndOperator,
+										Left: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
 											},
-											Property: "_field",
+											Right: &semantic.StringLiteral{
+												Value: "cpu",
+											},
 										},
-										Right: &semantic.StringLiteral{
-											Value: "value",
+										Right: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_field",
+											},
+											Right: &semantic.StringLiteral{
+												Value: "value",
+											},
 										},
 									},
 								},
@@ -72,13 +79,13 @@ func init() {
 					},
 					{
 						ID: "group0",
-						Spec: &functions.GroupOpSpec{
+						Spec: &transformations.GroupOpSpec{
 							By: []string{"_measurement", "_start"},
 						},
 					},
 					{
 						ID: "mean0",
-						Spec: &functions.MeanOpSpec{
+						Spec: &transformations.MeanOpSpec{
 							AggregateConfig: execute.AggregateConfig{
 								Columns: []string{execute.DefaultValueColLabel},
 							},
@@ -86,36 +93,40 @@ func init() {
 					},
 					{
 						ID: "duplicate0",
-						Spec: &functions.DuplicateOpSpec{
-							Col: execute.DefaultStartColLabel,
-							As:  execute.DefaultTimeColLabel,
+						Spec: &transformations.DuplicateOpSpec{
+							Column: execute.DefaultStartColLabel,
+							As:     execute.DefaultTimeColLabel,
 						},
 					},
 					{
 						ID: "map0",
-						Spec: &functions.MapOpSpec{
+						Spec: &transformations.MapOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{
-									Key: &semantic.Identifier{Name: "r"},
-								}},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "_time"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{{
+											Key: &semantic.Identifier{Name: "r"},
+										}},
+									},
+									Body: &semantic.ObjectExpression{
+										Properties: []*semantic.Property{
+											{
+												Key: &semantic.Identifier{Name: "_time"},
+												Value: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_time",
 												},
-												Property: "_time",
 											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "mean"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+											{
+												Key: &semantic.Identifier{Name: "mean"},
+												Value: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_value",
 												},
-												Property: "_value",
 											},
 										},
 									},
@@ -126,57 +137,61 @@ func init() {
 					},
 					{
 						ID: "yield0",
-						Spec: &functions.YieldOpSpec{
+						Spec: &transformations.YieldOpSpec{
 							Name: "0",
 						},
 					},
 					{
 						ID: "from1",
-						Spec: &functions.FromOpSpec{
-							BucketID: bucketID,
+						Spec: &inputs.FromOpSpec{
+							BucketID: bucketID.String(),
 						},
 					},
 					{
 						ID: "range1",
-						Spec: &functions.RangeOpSpec{
-							Start:    flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
-							Stop:     flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
-							TimeCol:  execute.DefaultTimeColLabel,
-							StartCol: execute.DefaultStartColLabel,
-							StopCol:  execute.DefaultStopColLabel,
+						Spec: &transformations.RangeOpSpec{
+							Start:       flux.Time{Absolute: time.Unix(0, influxql.MinTime)},
+							Stop:        flux.Time{Absolute: time.Unix(0, influxql.MaxTime)},
+							TimeColumn:  execute.DefaultTimeColLabel,
+							StartColumn: execute.DefaultStartColLabel,
+							StopColumn:  execute.DefaultStopColLabel,
 						},
 					},
 					{
 						ID: "filter1",
-						Spec: &functions.FilterOpSpec{
+						Spec: &transformations.FilterOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{
-									{Key: &semantic.Identifier{Name: "r"}},
-								},
-								Body: &semantic.LogicalExpression{
-									Operator: ast.AndOperator,
-									Left: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
-											},
-											Property: "_measurement",
-										},
-										Right: &semantic.StringLiteral{
-											Value: "cpu",
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{
+											{Key: &semantic.Identifier{Name: "r"}},
 										},
 									},
-									Right: &semantic.BinaryExpression{
-										Operator: ast.EqualOperator,
-										Left: &semantic.MemberExpression{
-											Object: &semantic.IdentifierExpression{
-												Name: "r",
+									Body: &semantic.LogicalExpression{
+										Operator: ast.AndOperator,
+										Left: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_measurement",
 											},
-											Property: "_field",
+											Right: &semantic.StringLiteral{
+												Value: "cpu",
+											},
 										},
-										Right: &semantic.StringLiteral{
-											Value: "value",
+										Right: &semantic.BinaryExpression{
+											Operator: ast.EqualOperator,
+											Left: &semantic.MemberExpression{
+												Object: &semantic.IdentifierExpression{
+													Name: "r",
+												},
+												Property: "_field",
+											},
+											Right: &semantic.StringLiteral{
+												Value: "value",
+											},
 										},
 									},
 								},
@@ -185,13 +200,13 @@ func init() {
 					},
 					{
 						ID: "group1",
-						Spec: &functions.GroupOpSpec{
+						Spec: &transformations.GroupOpSpec{
 							By: []string{"_measurement", "_start"},
 						},
 					},
 					{
 						ID: "max0",
-						Spec: &functions.MaxOpSpec{
+						Spec: &transformations.MaxOpSpec{
 							SelectorConfig: execute.SelectorConfig{
 								Column: execute.DefaultValueColLabel,
 							},
@@ -199,29 +214,33 @@ func init() {
 					},
 					{
 						ID: "map1",
-						Spec: &functions.MapOpSpec{
+						Spec: &transformations.MapOpSpec{
 							Fn: &semantic.FunctionExpression{
-								Params: []*semantic.FunctionParam{{
-									Key: &semantic.Identifier{Name: "r"},
-								}},
-								Body: &semantic.ObjectExpression{
-									Properties: []*semantic.Property{
-										{
-											Key: &semantic.Identifier{Name: "_time"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+								Block: &semantic.FunctionBlock{
+									Parameters: &semantic.FunctionParameters{
+										List: []*semantic.FunctionParameter{{
+											Key: &semantic.Identifier{Name: "r"},
+										}},
+									},
+									Body: &semantic.ObjectExpression{
+										Properties: []*semantic.Property{
+											{
+												Key: &semantic.Identifier{Name: "_time"},
+												Value: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_time",
 												},
-												Property: "_time",
 											},
-										},
-										{
-											Key: &semantic.Identifier{Name: "max"},
-											Value: &semantic.MemberExpression{
-												Object: &semantic.IdentifierExpression{
-													Name: "r",
+											{
+												Key: &semantic.Identifier{Name: "max"},
+												Value: &semantic.MemberExpression{
+													Object: &semantic.IdentifierExpression{
+														Name: "r",
+													},
+													Property: "_value",
 												},
-												Property: "_value",
 											},
 										},
 									},
@@ -232,7 +251,7 @@ func init() {
 					},
 					{
 						ID: "yield1",
-						Spec: &functions.YieldOpSpec{
+						Spec: &transformations.YieldOpSpec{
 							Name: "1",
 						},
 					},

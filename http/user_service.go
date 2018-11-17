@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/platform"
+	platcontext "github.com/influxdata/platform/context"
 	kerrors "github.com/influxdata/platform/kit/errors"
 	"github.com/julienschmidt/httprouter"
 )
@@ -16,8 +18,19 @@ import (
 // UserHandler represents an HTTP API handler for users.
 type UserHandler struct {
 	*httprouter.Router
-	UserService platform.UserService
+	UserService             platform.UserService
+	UserOperationLogService platform.UserOperationLogService
+	BasicAuthService        platform.BasicAuthService
 }
+
+const (
+	usersPath         = "/api/v2/users"
+	mePath            = "/api/v2/me"
+	mePasswordPath    = "/api/v2/me/password"
+	usersIDPath       = "/api/v2/users/:id"
+	usersPasswordPath = "/api/v2/users/:id/password"
+	usersLogPath      = "/api/v2/users/:id/log"
+)
 
 // NewUserHandler returns a new instance of UserHandler.
 func NewUserHandler() *UserHandler {
@@ -25,15 +38,90 @@ func NewUserHandler() *UserHandler {
 		Router: httprouter.New(),
 	}
 
-	h.HandlerFunc("POST", "/v1/users", h.handlePostUser)
-	h.HandlerFunc("GET", "/v1/users", h.handleGetUsers)
-	h.HandlerFunc("GET", "/v1/users/:id", h.handleGetUser)
-	h.HandlerFunc("PATCH", "/v1/users/:id", h.handlePatchUser)
-	h.HandlerFunc("DELETE", "/v1/users/:id", h.handleDeleteUser)
+	h.HandlerFunc("POST", usersPath, h.handlePostUser)
+	h.HandlerFunc("GET", usersPath, h.handleGetUsers)
+	h.HandlerFunc("GET", usersIDPath, h.handleGetUser)
+	h.HandlerFunc("GET", usersLogPath, h.handleGetUserLog)
+	h.HandlerFunc("PATCH", usersIDPath, h.handlePatchUser)
+	h.HandlerFunc("DELETE", usersIDPath, h.handleDeleteUser)
+	h.HandlerFunc("PUT", usersPasswordPath, h.handlePutUserPassword)
+
+	h.HandlerFunc("GET", mePath, h.handleGetMe)
+	h.HandlerFunc("PUT", mePasswordPath, h.handlePutUserPassword)
+
 	return h
 }
 
-// handlePostUser is the HTTP handler for the POST /v1/users route.
+func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+
+	req, err := decodePasswordResetRequest(ctx, r)
+	if err != nil {
+		return "", err
+	}
+
+	err = h.BasicAuthService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	if err != nil {
+		return "", err
+	}
+	return req.Username, nil
+}
+
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	username, err := h.putPassword(ctx, w, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+	filter := platform.UserFilter{
+		Name: &username,
+	}
+	b, err := h.UserService.FindUser(ctx, filter)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type passwordResetRequest struct {
+	Username    string
+	PasswordOld string
+	PasswordNew string
+}
+
+type passwordResetRequestBody struct {
+	Password string `json:"password"`
+}
+
+func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*passwordResetRequest, error) {
+	u, o, ok := r.BasicAuth()
+	if !ok {
+		return nil, fmt.Errorf("invalid basic auth")
+	}
+
+	pr := new(passwordResetRequestBody)
+	err := json.NewDecoder(r.Body).Decode(pr)
+	if err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Err:  err,
+		}
+	}
+
+	return &passwordResetRequest{
+		Username:    u,
+		PasswordOld: o,
+		PasswordNew: pr.Password,
+	}, nil
+}
+
+// handlePostUser is the HTTP handler for the POST /api/v2/users route.
 func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -48,7 +136,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.User); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newUserResponse(req.User)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -69,7 +157,37 @@ func decodePostUserRequest(ctx context.Context, r *http.Request) (*postUserReque
 	}, nil
 }
 
-// handleGetUser is the HTTP handler for the GET /v1/users/:id route.
+// handleGetUser is the HTTP handler for the GET /api/v2/me.
+func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	a, err := platcontext.GetAuthorizer(ctx)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	var id platform.ID
+	switch s := a.(type) {
+	case *platform.Session:
+		id = s.UserID
+	case *platform.Authorization:
+		id = s.UserID
+	}
+
+	b, err := h.UserService.FindUserByID(ctx, id)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+// handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
 func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -85,7 +203,7 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -114,7 +232,7 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 	return req, nil
 }
 
-// handleDeleteUser is the HTTP handler for the DELETE /v1/users/:id route.
+// handleDeleteUser is the HTTP handler for the DELETE /api/v2/users/:id route.
 func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -129,7 +247,7 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteUserRequest struct {
@@ -169,7 +287,7 @@ func (us usersResponse) ToPlatform() []*platform.User {
 func newUsersResponse(users []*platform.User) *usersResponse {
 	res := usersResponse{
 		Links: map[string]string{
-			"self": "/v2/users",
+			"self": "/api/v2/users",
 		},
 		Users: []*userResponse{},
 	}
@@ -187,13 +305,14 @@ type userResponse struct {
 func newUserResponse(u *platform.User) *userResponse {
 	return &userResponse{
 		Links: map[string]string{
-			"self": fmt.Sprintf("/v2/users/%s", u.ID),
+			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
+			"log":  fmt.Sprintf("/api/v2/users/%s/log", u.ID),
 		},
 		User: *u,
 	}
 }
 
-// handleGetUsers is the HTTP handler for the GET /v1/users route.
+// handleGetUsers is the HTTP handler for the GET /api/v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -224,11 +343,12 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	qp := r.URL.Query()
 	req := &getUsersRequest{}
 
-	if id := qp.Get("id"); id != "" {
-		req.filter.ID = &platform.ID{}
-		if err := req.filter.ID.DecodeFromString(id); err != nil {
+	if userID := qp.Get("id"); userID != "" {
+		id, err := platform.IDFromString(userID)
+		if err != nil {
 			return nil, err
 		}
+		req.filter.ID = id
 	}
 
 	if name := qp.Get("name"); name != "" {
@@ -238,7 +358,7 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 	return req, nil
 }
 
-// handlePatchUser is the HTTP handler for the PATCH /v1/users/:id route.
+// handlePatchUser is the HTTP handler for the PATCH /api/v2/users/:id route.
 func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -254,7 +374,7 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -295,6 +415,38 @@ type UserService struct {
 	InsecureSkipVerify bool
 }
 
+// FindMe returns user information about the owner of the token
+func (s *UserService) FindMe(ctx context.Context, id platform.ID) (*platform.User, error) {
+	url, err := newURL(s.Addr, mePath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	SetToken(s.Token, req)
+
+	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	if err := CheckError(resp); err != nil {
+		return nil, err
+	}
+
+	var res userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+	return &res.User, nil
+}
+
 // FindUserByID returns a single user by ID.
 func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platform.User, error) {
 	url, err := newURL(s.Addr, userIDPath(id))
@@ -318,13 +470,13 @@ func (s *UserService) FindUserByID(ctx context.Context, id platform.ID) (*platfo
 		return nil, err
 	}
 
-	var b platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&b); err != nil {
+	var res userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	return &b, nil
+	return &res.User, nil
 }
 
 // FindUser returns the first user that matches filter.
@@ -344,7 +496,7 @@ func (s *UserService) FindUser(ctx context.Context, filter platform.UserFilter) 
 // FindUsers returns a list of users that match filter and the total count of matching users.
 // Additional options provide pagination & sorting.
 func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter, opt ...platform.FindOptions) ([]*platform.User, int, error) {
-	url, err := newURL(s.Addr, userPath)
+	url, err := newURL(s.Addr, usersPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -371,7 +523,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 		return nil, 0, err
 	}
 
-	if err := CheckError(resp); err != nil {
+	if err := CheckError(resp, true); err != nil {
 		return nil, 0, err
 	}
 
@@ -384,13 +536,9 @@ func (s *UserService) FindUsers(ctx context.Context, filter platform.UserFilter,
 	return us, len(us), nil
 }
 
-const (
-	userPath = "/v1/users"
-)
-
 // CreateUser creates a new user and sets u.ID with the new identifier.
 func (s *UserService) CreateUser(ctx context.Context, u *platform.User) error {
-	url, err := newURL(s.Addr, userPath)
+	url, err := newURL(s.Addr, usersPath)
 	if err != nil {
 		return err
 	}
@@ -459,13 +607,13 @@ func (s *UserService) UpdateUser(ctx context.Context, id platform.ID, upd platfo
 		return nil, err
 	}
 
-	var u platform.User
-	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
+	var res userResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	return &u, nil
+	return &res.User, nil
 }
 
 // DeleteUser removes a user by ID.
@@ -486,9 +634,88 @@ func (s *UserService) DeleteUser(ctx context.Context, id platform.ID) error {
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+
+	return CheckErrorStatus(http.StatusNoContent, resp, true)
 }
 
 func userIDPath(id platform.ID) string {
-	return path.Join(userPath, id.String())
+	return path.Join(usersPath, id.String())
+}
+
+// hanldeGetUserLog retrieves a user log by the users ID.
+func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	req, err := decodeGetUserLogRequest(ctx, r)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.UserOperationLogService.GetUserOperationLog(ctx, req.UserID, req.opts)
+	if err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserLogResponse(req.UserID, log)); err != nil {
+		EncodeError(ctx, err, w)
+		return
+	}
+}
+
+type getUserLogRequest struct {
+	UserID platform.ID
+	opts   platform.FindOptions
+}
+
+func decodeGetUserLogRequest(ctx context.Context, r *http.Request) (*getUserLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, kerrors.InvalidDataf("url missing id")
+	}
+
+	var i platform.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts := platform.DefaultOperationLogFindOptions
+	qp := r.URL.Query()
+	if v := qp.Get("desc"); v == "false" {
+		opts.Descending = false
+	}
+	if v := qp.Get("limit"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Limit = i
+	}
+	if v := qp.Get("offset"); v != "" {
+		i, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts.Offset = i
+	}
+
+	return &getUserLogRequest{
+		UserID: i,
+		opts:   opts,
+	}, nil
+}
+
+func newUserLogResponse(id platform.ID, es []*platform.OperationLogEntry) *operationLogResponse {
+	log := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		log = append(log, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/users/%s/log", id),
+		},
+		Log: log,
+	}
 }

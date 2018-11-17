@@ -1,14 +1,13 @@
 package snowflake
 
 import (
-	"encoding/binary"
 	"errors"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/snowflake"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/pkg/snowflake"
 )
 
 func init() {
@@ -57,7 +56,7 @@ func NewDefaultIDGenerator() *IDGenerator {
 	return NewIDGenerator()
 }
 
-// IDGenerator generates a new ID.
+// IDGenerator holds the ID generator.
 type IDGenerator struct {
 	Generator *snowflake.Generator
 }
@@ -87,8 +86,9 @@ func NewIDGenerator(opts ...IDGeneratorOp) *IDGenerator {
 
 // ID returns the next platform.ID from an IDGenerator.
 func (g *IDGenerator) ID() platform.ID {
-	id := make(platform.ID, 8)
-	i := g.Generator.Next()
-	binary.BigEndian.PutUint64(id, i)
+	var id platform.ID
+	for !id.Valid() {
+		id = platform.ID(g.Generator.Next())
+	}
 	return id
 }

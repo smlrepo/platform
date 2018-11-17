@@ -6,8 +6,10 @@ import (
 	"os"
 
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/bolt"
 	"github.com/influxdata/platform/cmd/influx/internal"
 	"github.com/influxdata/platform/http"
+	"github.com/influxdata/platform/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -43,17 +45,38 @@ func init() {
 	organizationCmd.AddCommand(organizationCreateCmd)
 }
 
-func organizationCreateF(cmd *cobra.Command, args []string) {
-	orgS := &http.OrganizationService{
+func newOrganizationService(f Flags) (platform.OrganizationService, error) {
+	if flags.local {
+		boltFile, err := fs.BoltFile()
+		if err != nil {
+			return nil, err
+		}
+		c := bolt.NewClient()
+		c.Path = boltFile
+		if err := c.Open(context.Background()); err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+	return &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
+	}, nil
+}
+
+func organizationCreateF(cmd *cobra.Command, args []string) {
+	orgSvc, err := newOrganizationService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	o := &platform.Organization{
 		Name: organizationCreateFlags.name,
 	}
 
-	if err := orgS.CreateOrganization(context.Background(), o); err != nil {
+	if err := orgSvc.CreateOrganization(context.Background(), o); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -92,9 +115,10 @@ func init() {
 }
 
 func organizationFindF(cmd *cobra.Command, args []string) {
-	s := &http.OrganizationService{
-		Addr:  flags.host,
-		Token: flags.token,
+	orgSvc, err := newOrganizationService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	filter := platform.OrganizationFilter{}
@@ -103,14 +127,15 @@ func organizationFindF(cmd *cobra.Command, args []string) {
 	}
 
 	if organizationFindFlags.id != "" {
-		filter.ID = &platform.ID{}
-		if err := filter.ID.DecodeFromString(organizationFindFlags.id); err != nil {
+		id, err := platform.IDFromString(organizationFindFlags.id)
+		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = id
 	}
 
-	orgs, _, err := s.FindOrganizations(context.Background(), filter)
+	orgs, _, err := orgSvc.FindOrganizations(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -153,14 +178,14 @@ func init() {
 }
 
 func organizationUpdateF(cmd *cobra.Command, args []string) {
-	s := &http.OrganizationService{
-		Addr:  flags.host,
-		Token: flags.token,
+	orgSvc, err := newOrganizationService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID
-	err := id.DecodeFromString(organizationUpdateFlags.id)
-	if err != nil {
+	if err := id.DecodeFromString(organizationUpdateFlags.id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -170,7 +195,7 @@ func organizationUpdateF(cmd *cobra.Command, args []string) {
 		update.Name = &organizationUpdateFlags.name
 	}
 
-	o, err := s.UpdateOrganization(context.Background(), id, update)
+	o, err := orgSvc.UpdateOrganization(context.Background(), id, update)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -196,9 +221,10 @@ type OrganizationDeleteFlags struct {
 var organizationDeleteFlags OrganizationDeleteFlags
 
 func organizationDeleteF(cmd *cobra.Command, args []string) {
-	s := &http.OrganizationService{
-		Addr:  flags.host,
-		Token: flags.token,
+	orgSvc, err := newOrganizationService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	var id platform.ID
@@ -208,13 +234,13 @@ func organizationDeleteF(cmd *cobra.Command, args []string) {
 	}
 
 	ctx := context.TODO()
-	o, err := s.FindOrganizationByID(ctx, id)
+	o, err := orgSvc.FindOrganizationByID(ctx, id)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err = s.DeleteOrganization(ctx, id); err != nil {
+	if err = orgSvc.DeleteOrganization(ctx, id); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -266,14 +292,16 @@ type OrganizationMembersListFlags struct {
 var organizationMembersListFlags OrganizationMembersListFlags
 
 func organizationMembersListF(cmd *cobra.Command, args []string) {
-	orgS := &http.OrganizationService{
-		Addr:  flags.host,
-		Token: flags.token,
+	orgSvc, err := newOrganizationService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	mappingS := &http.UserResourceMappingService{
-		Addr:  flags.host,
-		Token: flags.token,
+	mappingSvc, err := newUserResourceMappingService(flags)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	if organizationMembersListFlags.id == "" && organizationMembersListFlags.name == "" {
@@ -288,15 +316,16 @@ func organizationMembersListF(cmd *cobra.Command, args []string) {
 	}
 
 	if organizationMembersListFlags.id != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationMembersListFlags.id)
+		var fID platform.ID
+		err := fID.DecodeFromString(organizationMembersListFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = &fID
 	}
 
-	organization, err := orgS.FindOrganization(context.Background(), filter)
+	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -307,7 +336,7 @@ func organizationMembersListF(cmd *cobra.Command, args []string) {
 		UserType:   platform.Member,
 	}
 
-	mappings, _, err := mappingS.FindUserResourceMappings(context.Background(), mappingFilter)
+	mappings, _, err := mappingSvc.FindUserResourceMappings(context.Background(), mappingFilter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -361,7 +390,7 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	orgS := &http.OrganizationService{
+	orgSvc := &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
@@ -377,21 +406,22 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) {
 	}
 
 	if organizationMembersAddFlags.id != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationMembersAddFlags.id)
+		var fID platform.ID
+		err := fID.DecodeFromString(organizationMembersAddFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = &fID
 	}
 
-	organization, err := orgS.FindOrganization(context.Background(), filter)
+	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	memberID := &platform.ID{}
+	var memberID platform.ID
 	err = memberID.DecodeFromString(organizationMembersAddFlags.memberId)
 	if err != nil {
 		fmt.Println(err)
@@ -400,7 +430,7 @@ func organizationMembersAddF(cmd *cobra.Command, args []string) {
 
 	mapping := &platform.UserResourceMapping{
 		ResourceID: organization.ID,
-		UserID:     *memberID,
+		UserID:     memberID,
 		UserType:   platform.Member,
 	}
 
@@ -449,7 +479,7 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	orgS := &http.OrganizationService{
+	orgSvc := &http.OrganizationService{
 		Addr:  flags.host,
 		Token: flags.token,
 	}
@@ -465,28 +495,29 @@ func organizationMembersRemoveF(cmd *cobra.Command, args []string) {
 	}
 
 	if organizationMembersRemoveFlags.id != "" {
-		filter.ID = &platform.ID{}
-		err := filter.ID.DecodeFromString(organizationMembersRemoveFlags.id)
+		var fID platform.ID
+		err := fID.DecodeFromString(organizationMembersRemoveFlags.id)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
+		filter.ID = &fID
 	}
 
-	organization, err := orgS.FindOrganization(context.Background(), filter)
+	organization, err := orgSvc.FindOrganization(context.Background(), filter)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	memberID := &platform.ID{}
+	var memberID platform.ID
 	err = memberID.DecodeFromString(organizationMembersRemoveFlags.memberId)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
-	if err = mappingS.DeleteUserResourceMapping(context.Background(), organization.ID, *memberID); err != nil {
+	if err = mappingS.DeleteUserResourceMapping(context.Background(), organization.ID, memberID); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

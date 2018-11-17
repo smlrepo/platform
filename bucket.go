@@ -6,11 +6,16 @@ import (
 	"time"
 )
 
+// BucketType defines known system-buckets.
 type BucketType int
 
 const (
+	// BucketTypeLogs defines the bucket ID of the system logs.
 	BucketTypeLogs = BucketType(iota + 10)
 )
+
+// InfiniteRetention is default infinite retention period.
+const InfiniteRetention = 0
 
 // Bucket is a bucket. 🎉
 type Bucket struct {

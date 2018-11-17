@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	sourceHTTPPath = "/v2/sources"
+	sourceHTTPPath = "/api/v2/sources"
 )
 
 type sourceResponse struct {
@@ -32,6 +32,19 @@ type sourceResponse struct {
 func newSourceResponse(s *platform.Source) *sourceResponse {
 	s.Password = ""
 	s.SharedSecret = ""
+
+	if s.Type == platform.SelfSourceType {
+		return &sourceResponse{
+			Source: s,
+			Links: map[string]interface{}{
+				"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
+				"query":   "/api/v2/query",
+				"buckets": "/api/v2/buckets",
+				"health":  "/api/v2/health",
+			},
+		}
+	}
+
 	return &sourceResponse{
 		Source: s,
 		Links: map[string]interface{}{
@@ -88,15 +101,15 @@ func NewSourceHandler() *SourceHandler {
 		},
 	}
 
-	h.HandlerFunc("POST", "/v2/sources", h.handlePostSource)
-	h.HandlerFunc("GET", "/v2/sources", h.handleGetSources)
-	h.HandlerFunc("GET", "/v2/sources/:id", h.handleGetSource)
-	h.HandlerFunc("PATCH", "/v2/sources/:id", h.handlePatchSource)
-	h.HandlerFunc("DELETE", "/v2/sources/:id", h.handleDeleteSource)
+	h.HandlerFunc("POST", "/api/v2/sources", h.handlePostSource)
+	h.HandlerFunc("GET", "/api/v2/sources", h.handleGetSources)
+	h.HandlerFunc("GET", "/api/v2/sources/:id", h.handleGetSource)
+	h.HandlerFunc("PATCH", "/api/v2/sources/:id", h.handlePatchSource)
+	h.HandlerFunc("DELETE", "/api/v2/sources/:id", h.handleDeleteSource)
 
-	h.HandlerFunc("GET", "/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
-	h.HandlerFunc("POST", "/v2/sources/:id/query", h.handlePostSourceQuery)
-	h.HandlerFunc("GET", "/v2/sources/:id/health", h.handleGetSourceHealth)
+	h.HandlerFunc("GET", "/api/v2/sources/:id/buckets", h.handleGetSourcesBuckets)
+	h.HandlerFunc("POST", "/api/v2/sources/:id/query", h.handlePostSourceQuery)
+	h.HandlerFunc("GET", "/api/v2/sources/:id/health", h.handleGetSourceHealth)
 
 	return h
 }
@@ -148,7 +161,7 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 	return req, nil
 }
 
-// handlePostSourceQuery is the HTTP handler for POST /v2/sources/:id/query
+// handlePostSourceQuery is the HTTP handler for POST /api/v2/sources/:id/query
 func (h *SourceHandler) handlePostSourceQuery(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	gsr, err := decodeGetSourceRequest(ctx, r)
@@ -182,7 +195,7 @@ func (h *SourceHandler) handlePostSourceQuery(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// handleGetSourcesBuckets is the HTTP handler for the GET /v2/sources/:id/buckets route.
+// handleGetSourcesBuckets is the HTTP handler for the GET /api/v2/sources/:id/buckets route.
 func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -236,7 +249,7 @@ func decodeGetSourceBucketsRequest(ctx context.Context, r *http.Request) (*getSo
 	}, nil
 }
 
-// handlePostSource is the HTTP handler for the POST /v1/sources route.
+// handlePostSource is the HTTP handler for the POST /api/v2/sources route.
 func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -251,7 +264,9 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, req.Source); err != nil {
+	res := newSourceResponse(req.Source)
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -272,7 +287,7 @@ func decodePostSourceRequest(ctx context.Context, r *http.Request) (*postSourceR
 	}, nil
 }
 
-// handleGetSource is the HTTP handler for the GET /v1/sources/:id route.
+// handleGetSource is the HTTP handler for the GET /api/v2/sources/:id route.
 func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -324,7 +339,7 @@ func decodeGetSourceRequest(ctx context.Context, r *http.Request) (*getSourceReq
 	return req, nil
 }
 
-// handleDeleteSource is the HTTP handler for the DELETE /v1/sources/:id route.
+// handleDeleteSource is the HTTP handler for the DELETE /api/v2/sources/:id route.
 func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -339,7 +354,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type deleteSourceRequest struct {
@@ -364,7 +379,7 @@ func decodeDeleteSourceRequest(ctx context.Context, r *http.Request) (*deleteSou
 	return req, nil
 }
 
-// handleGetSources is the HTTP handler for the GET /v1/sources route.
+// handleGetSources is the HTTP handler for the GET /api/v2/sources route.
 func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -397,7 +412,7 @@ func decodeGetSourcesRequest(ctx context.Context, r *http.Request) (*getSourcesR
 	return req, nil
 }
 
-// handlePatchSource is the HTTP handler for the PATH /v1/sources route.
+// handlePatchSource is the HTTP handler for the PATH /api/v2/sources route.
 func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -448,7 +463,7 @@ func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourc
 }
 
 const (
-	sourcePath = "/v1/sources"
+	sourcePath = "/api/v2/sources"
 )
 
 // SourceService connects to Influx via HTTP using tokens to manage sources
@@ -623,7 +638,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 		return err
 	}
 
-	return CheckError(resp)
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 func sourceIDPath(id platform.ID) string {

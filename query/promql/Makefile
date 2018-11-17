@@ -1,9 +1,8 @@
 all: promql.go
 
-promql.go: promql.peg gen.go ../../bin/$(GOOS)/pigeon
-	PATH=../../bin/${GOOS}:${PATH} go generate -x ./...
+GO_GENERATE := go generate
 
-clean:
-	rm -f promql.go
+promql.go: promql.peg gen.go
+	$(GO_GENERATE) -x
 
-.PHONY: all clean
+.PHONY: all

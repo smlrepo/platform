@@ -27,7 +27,7 @@ type QueryRequest struct {
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
 
-	org *platform.Organization
+	Org *platform.Organization `json:"-"`
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -98,9 +98,9 @@ func (r QueryRequest) Validate() error {
 }
 
 func nowFunc(now time.Time) values.Function {
-	timeVal := values.NewTimeValue(values.ConvertTime(now))
+	timeVal := values.NewTime(values.ConvertTime(now))
 	ftype := semantic.NewFunctionType(semantic.FunctionSignature{
-		ReturnType: semantic.Time,
+		Return: semantic.Time,
 	})
 	call := func(args values.Object) (values.Value, error) {
 		return timeVal, nil
@@ -112,8 +112,7 @@ func nowFunc(now time.Time) values.Function {
 func toSpec(p *ast.Program, now func() time.Time) (*flux.Spec, error) {
 	itrp := flux.NewInterpreter()
 	itrp.SetOption("now", nowFunc(now()))
-	_, decl := flux.BuiltIns()
-	semProg, err := semantic.New(p, decl)
+	semProg, err := semantic.New(p)
 	if err != nil {
 		return nil, err
 	}
@@ -165,10 +164,10 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	// once they are supported.
 	return &query.ProxyRequest{
 		Request: query.Request{
-			OrganizationID: r.org.ID,
+			OrganizationID: r.Org.ID,
 			Compiler:       compiler,
 		},
-		Dialect: csv.Dialect{
+		Dialect: &csv.Dialect{
 			ResultEncoderConfig: csv.ResultEncoderConfig{
 				NoHeader:    noHeader,
 				Delimiter:   delimiter,
@@ -219,7 +218,7 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 		return nil, err
 	}
 
-	req.org, err = queryOrganization(ctx, r, svc)
+	req.Org, err = queryOrganization(ctx, r, svc)
 	return &req, err
 }
 

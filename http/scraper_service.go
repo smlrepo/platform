@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path"
 
@@ -19,7 +20,7 @@ type ScraperHandler struct {
 }
 
 const (
-	targetPath = "/v2/scrapertargets"
+	targetPath = "/api/v2/scrapertargets"
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
@@ -35,7 +36,7 @@ func NewScraperHandler() *ScraperHandler {
 	return h
 }
 
-// handlePostScraperTarget is HTTP handler for the POST /v2/scrapertargets route.
+// handlePostScraperTarget is HTTP handler for the POST /api/v2/scrapertargets route.
 func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -55,7 +56,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 	}
 }
 
-// handleDeleteScraperTarget is the HTTP handler for the DELETE /v2/scrapertargets/:id route.
+// handleDeleteScraperTarget is the HTTP handler for the DELETE /api/v2/scrapertargets/:id route.
 func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -70,10 +71,10 @@ func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *htt
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// handlePatchScraperTarget is the HTTP handler for the PATCH /v2/scrapertargets/:id route.
+// handlePatchScraperTarget is the HTTP handler for the PATCH /api/v2/scrapertargets/:id route.
 func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -115,7 +116,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 	}
 }
 
-// handleGetScraperTargets is the HTTP handler for the GET /v2/scrapertargets route.
+// handleGetScraperTargets is the HTTP handler for the GET /api/v2/scrapertargets route.
 func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -217,6 +218,9 @@ func (s *ScraperService) ListTargets(ctx context.Context) ([]platform.ScraperTar
 // UpdateTarget updates a single scraper target with changeset.
 // Returns the new target state after update.
 func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.ScraperTarget) (*platform.ScraperTarget, error) {
+	if !update.ID.Valid() {
+		return nil, errors.New("update scraper: id is invalid")
+	}
 	url, err := newURL(s.Addr, targetIDPath(update.ID))
 	if err != nil {
 		return nil, err
@@ -253,7 +257,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *platform.Scra
 }
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
-func (s *ScraperService) AddTarget(ctx context.Context, target platform.ScraperTarget) error {
+func (s *ScraperService) AddTarget(ctx context.Context, target *platform.ScraperTarget) error {
 	url, err := newURL(s.Addr, targetPath)
 	if err != nil {
 		return err
@@ -310,7 +314,8 @@ func (s *ScraperService) RemoveTarget(ctx context.Context, id platform.ID) error
 	if err != nil {
 		return err
 	}
-	return CheckError(resp)
+
+	return CheckErrorStatus(http.StatusNoContent, resp)
 }
 
 // GetTargetByID returns a single target by ID.

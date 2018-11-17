@@ -3,9 +3,6 @@ package http
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/platform/mock"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,8 +11,12 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/platform"
+	"github.com/influxdata/platform/mock"
 	"github.com/influxdata/platform/query"
+	_ "github.com/influxdata/platform/query/builtin"
 )
 
 func TestQueryRequest_WithDefaults(t *testing.T) {
@@ -52,7 +53,7 @@ func TestQueryRequest_WithDefaults(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			if got := r.WithDefaults(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("QueryRequest.WithDefaults() = %v, want %v", got, tt.want)
@@ -167,7 +168,7 @@ func TestQueryRequest_Validate(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			if err := r.Validate(); (err != nil) != tt.wantErr {
 				t.Errorf("QueryRequest.Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -177,7 +178,6 @@ func TestQueryRequest_Validate(t *testing.T) {
 }
 
 func Test_toSpec(t *testing.T) {
-	flux.FinalizeBuiltIns()
 	type args struct {
 		p   *ast.Program
 		now func() time.Time
@@ -266,7 +266,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						Query: "howdy",
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -294,7 +294,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						},
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -323,7 +323,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 						},
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',
@@ -340,7 +340,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				Query:   tt.fields.Query,
 				Type:    tt.fields.Type,
 				Dialect: tt.fields.Dialect,
-				org:     tt.fields.org,
+				Org:     tt.fields.org,
 			}
 			got, err := r.proxyRequest(tt.now)
 			if (err != nil) != tt.wantErr {
@@ -348,7 +348,7 @@ func TestQueryRequest_proxyRequest(t *testing.T) {
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("QueryRequest.ProxyRequest() = %v, want %v", got, tt.want)
+				t.Errorf("QueryRequest.ProxyRequest() = %#v, want %#v", got, tt.want)
 			}
 		})
 	}
@@ -373,7 +373,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
@@ -386,8 +386,8 @@ func Test_decodeQueryRequest(t *testing.T) {
 					DateTimeFormat: "RFC3339",
 					Header:         func(x bool) *bool { return &x }(true),
 				},
-				org: &platform.Organization{
-					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+				Org: &platform.Organization{
+					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 				},
 			},
 		},
@@ -440,19 +440,19 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeef"); return *s }(),
+					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
 					},
 				},
-				Dialect: csv.Dialect{
+				Dialect: &csv.Dialect{
 					ResultEncoderConfig: csv.ResultEncoderConfig{
 						NoHeader:  false,
 						Delimiter: ',',

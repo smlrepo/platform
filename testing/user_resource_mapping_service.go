@@ -1,13 +1,28 @@
 package testing
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/platform"
 )
+
+var mappingCmpOptions = cmp.Options{
+	cmp.Comparer(func(x, y []byte) bool {
+		return bytes.Equal(x, y)
+	}),
+	cmp.Transformer("Sort", func(in []*platform.UserResourceMapping) []*platform.UserResourceMapping {
+		out := append([]*platform.UserResourceMapping(nil), in...) // Copy input to avoid mutating it
+		sort.Slice(out, func(i, j int) bool {
+			return out[i].ResourceID.String() > out[j].ResourceID.String()
+		})
+		return out
+	}),
+}
 
 // UserResourceFields includes prepopulated data for mapping tests
 type UserResourceFields struct {
@@ -71,30 +86,34 @@ func CreateUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 			args: args{
 				mapping: &platform.UserResourceMapping{
-					ResourceID: idFromString(t, bucketTwoID),
-					UserID:     idFromString(t, userTwoID),
-					UserType:   platform.Member,
+					ResourceID:   MustIDBase16(bucketTwoID),
+					UserID:       MustIDBase16(userTwoID),
+					UserType:     platform.Member,
+					ResourceType: platform.BucketResourceType,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -104,24 +123,24 @@ func CreateUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
 						UserType:   platform.Member,
 					},
 				},
 			},
 			args: args{
 				mapping: &platform.UserResourceMapping{
-					ResourceID: idFromString(t, bucketOneID),
-					UserID:     idFromString(t, userOneID),
+					ResourceID: MustIDBase16(bucketOneID),
+					UserID:     MustIDBase16(userOneID),
 					UserType:   platform.Member,
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
 						UserType:   platform.Member,
 					},
 				},
@@ -151,7 +170,7 @@ func CreateUserResourceMapping(
 			if err != nil {
 				t.Fatalf("failed to retrieve mappings: %v", err)
 			}
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -182,15 +201,15 @@ func DeleteUserResourceMapping(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
+						ResourceID: MustIDBase16(bucketOneID),
+						UserID:     MustIDBase16(userOneID),
 						UserType:   platform.Member,
 					},
 				},
 			},
 			args: args{
-				resourceID: idFromString(t, bucketOneID),
-				userID:     idFromString(t, userOneID),
+				resourceID: MustIDBase16(bucketOneID),
+				userID:     MustIDBase16(userOneID),
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{},
@@ -202,8 +221,8 @@ func DeleteUserResourceMapping(
 				UserResourceMappings: []*platform.UserResourceMapping{},
 			},
 			args: args{
-				resourceID: idFromString(t, bucketOneID),
-				userID:     idFromString(t, userOneID),
+				resourceID: MustIDBase16(bucketOneID),
+				userID:     MustIDBase16(userOneID),
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{},
@@ -232,7 +251,7 @@ func DeleteUserResourceMapping(
 			if err != nil {
 				t.Fatalf("failed to retrieve mappings: %v", err)
 			}
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -262,14 +281,16 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -279,14 +300,16 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -296,28 +319,31 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					UserID: idFromString(t, userOneID),
+					UserID: MustIDBase16(userOneID),
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -327,45 +353,50 @@ func FindUserResourceMappings(
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 			args: args{
 				filter: platform.UserResourceMappingFilter{
-					ResourceID: idFromString(t, bucketOneID),
+					ResourceID: MustIDBase16(bucketOneID),
 				},
 			},
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
 		},
 		{
-			name: "find mappings filtered by type",
+			name: "find mappings filtered by user type",
 			fields: UserResourceFields{
 				UserResourceMappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketOneID),
-						UserID:     idFromString(t, userOneID),
-						UserType:   platform.Member,
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Owner,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -377,9 +408,44 @@ func FindUserResourceMappings(
 			wants: wants{
 				mappings: []*platform.UserResourceMapping{
 					{
-						ResourceID: idFromString(t, bucketTwoID),
-						UserID:     idFromString(t, userTwoID),
-						UserType:   platform.Owner,
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Owner,
+						ResourceType: platform.BucketResourceType,
+					},
+				},
+			},
+		},
+		{
+			name: "find mappings filtered by resource type",
+			fields: UserResourceFields{
+				UserResourceMappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(bucketOneID),
+						UserID:       MustIDBase16(userOneID),
+						UserType:     platform.Member,
+						ResourceType: platform.DashboardResourceType,
+					},
+					{
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
+					},
+				},
+			},
+			args: args{
+				filter: platform.UserResourceMappingFilter{
+					ResourceType: platform.BucketResourceType,
+				},
+			},
+			wants: wants{
+				mappings: []*platform.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(bucketTwoID),
+						UserID:       MustIDBase16(userTwoID),
+						UserType:     platform.Member,
+						ResourceType: platform.BucketResourceType,
 					},
 				},
 			},
@@ -402,7 +468,7 @@ func FindUserResourceMappings(
 				}
 			}
 
-			if diff := cmp.Diff(mappings, tt.wants.mappings, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(mappings, tt.wants.mappings, mappingCmpOptions...); diff != "" {
 				t.Errorf("mappings are different -got/+want\ndiff %s", diff)
 			}
 		})

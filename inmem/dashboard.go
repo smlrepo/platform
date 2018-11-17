@@ -1,9 +1,9 @@
 package inmem
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/influxdata/platform"
 )
@@ -27,9 +27,14 @@ func (s *Service) FindDashboardByID(ctx context.Context, id platform.ID) (*platf
 }
 
 func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboard) bool {
-	if filter.ID != nil {
+	if len(filter.IDs) > 0 {
+		var sm sync.Map
+		for _, id := range filter.IDs {
+			sm.Store(id.String(), true)
+		}
 		return func(d *platform.Dashboard) bool {
-			return bytes.Equal(d.ID, *filter.ID)
+			_, ok := sm.Load(d.ID.String())
+			return ok
 		}
 	}
 
@@ -37,9 +42,9 @@ func filterDashboardFn(filter platform.DashboardFilter) func(d *platform.Dashboa
 }
 
 // FindDashboards implements platform.DashboardService interface.
-func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter) ([]*platform.Dashboard, int, error) {
-	if filter.ID != nil {
-		d, err := s.FindDashboardByID(ctx, *filter.ID)
+func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardFilter, opts platform.FindOptions) ([]*platform.Dashboard, int, error) {
+	if len(filter.IDs) == 1 {
+		d, err := s.FindDashboardByID(ctx, *filter.IDs[0])
 		if err != nil {
 			return nil, 0, err
 		}
@@ -61,13 +66,17 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 		}
 		return true
 	})
+
+	platform.SortDashboards(opts.SortBy, ds)
+
 	return ds, len(ds), err
 }
 
 // CreateDashboard implements platform.DashboardService interface.
 func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	d.ID = s.IDGenerator.ID()
-	return s.PutDashboard(ctx, d)
+	d.Meta.CreatedAt = s.time()
+	return s.PutDashboardWithMeta(ctx, d)
 }
 
 // PutDashboard implements platform.DashboardService interface.
@@ -76,19 +85,32 @@ func (s *Service) PutDashboard(ctx context.Context, o *platform.Dashboard) error
 	return nil
 }
 
+// PutDashboardWithMeta sets a dashboard while updating the meta field of a dashboard.
+func (s *Service) PutDashboardWithMeta(ctx context.Context, d *platform.Dashboard) error {
+	d.Meta.UpdatedAt = s.time()
+	return s.PutDashboard(ctx, d)
+}
+
 // UpdateDashboard implements platform.DashboardService interface.
 func (s *Service) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
-	o, err := s.FindDashboardByID(ctx, id)
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
+	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if upd.Name != nil {
-		o.Name = *upd.Name
+	if err := upd.Apply(d); err != nil {
+		return nil, err
 	}
 
-	s.dashboardKV.Store(o.ID.String(), o)
-	return o, nil
+	if err := s.PutDashboardWithMeta(ctx, d); err != nil {
+		return nil, err
+	}
+
+	return d, nil
 }
 
 // DeleteDashboard implements platform.DashboardService interface.
@@ -100,6 +122,7 @@ func (s *Service) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	return nil
 }
 
+// AddDashboardCell adds a new cell to the dashboard.
 func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell, opts platform.AddDashboardCellOptions) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
@@ -111,9 +134,10 @@ func (s *Service) AddDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	}
 
 	d.Cells = append(d.Cells, cell)
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 }
 
+// PutDashboardCell replaces a dashboad cell with the cell contents.
 func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
@@ -129,6 +153,7 @@ func (s *Service) PutDashboardCell(ctx context.Context, id platform.ID, cell *pl
 	return s.PutDashboard(ctx, d)
 }
 
+// RemoveDashboardCell removes a dashboard cell from the dashboard.
 func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID) error {
 	d, err := s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
@@ -137,7 +162,7 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 
 	idx := -1
 	for i, cell := range d.Cells {
-		if bytes.Equal(cell.ID, cellID) {
+		if cell.ID == cellID {
 			idx = i
 			break
 		}
@@ -151,11 +176,16 @@ func (s *Service) RemoveDashboardCell(ctx context.Context, dashboardID platform.
 	}
 
 	d.Cells = append(d.Cells[:idx], d.Cells[idx+1:]...)
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 
 }
 
+// UpdateDashboardCell will remove a cell from a dashboard.
 func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd platform.CellUpdate) (*platform.Cell, error) {
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	d, err := s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return nil, err
@@ -163,7 +193,7 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.
 
 	idx := -1
 	for i, cell := range d.Cells {
-		if bytes.Equal(cell.ID, cellID) {
+		if cell.ID == cellID {
 			idx = i
 			break
 		}
@@ -178,13 +208,14 @@ func (s *Service) UpdateDashboardCell(ctx context.Context, dashboardID platform.
 
 	cell := d.Cells[idx]
 
-	if err := s.PutDashboard(ctx, d); err != nil {
+	if err := s.PutDashboardWithMeta(ctx, d); err != nil {
 		return nil, err
 	}
 
 	return cell, nil
 }
 
+// ReplaceDashboardCells replaces many dashboard cells.
 func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*platform.Cell) error {
 	d, err := s.FindDashboardByID(ctx, id)
 	if err != nil {
@@ -197,7 +228,7 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 	}
 
 	for _, cell := range cs {
-		if len(cell.ID) == 0 {
+		if !cell.ID.Valid() {
 			return fmt.Errorf("cannot provide empty cell id")
 		}
 
@@ -206,12 +237,12 @@ func (s *Service) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs 
 			return fmt.Errorf("cannot replace cells that were not already present")
 		}
 
-		if !bytes.Equal(cl.ViewID, cell.ViewID) {
+		if cl.ViewID != cell.ViewID {
 			return fmt.Errorf("cannot update view id in replace")
 		}
 	}
 
 	d.Cells = cs
 
-	return s.PutDashboard(ctx, d)
+	return s.PutDashboardWithMeta(ctx, d)
 }
