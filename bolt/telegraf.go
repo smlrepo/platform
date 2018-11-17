@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/platform"
+	bolt "go.etcd.io/bbolt"
 )
 
 var (
