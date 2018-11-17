@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/influxdata/platform"
-	bolt "go.etcd.io/bbolt"
 	platformcontext "github.com/influxdata/platform/context"
+	bolt "go.etcd.io/bbolt"
 )
 
 var (

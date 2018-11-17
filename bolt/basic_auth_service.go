@@ -3,7 +3,7 @@ package bolt
 import (
 	"context"
 
-	bolt "github.com/coreos/bbolt"
+	bolt "go.etcd.io/bbolt"
 	"golang.org/x/crypto/bcrypt"
 )
 
